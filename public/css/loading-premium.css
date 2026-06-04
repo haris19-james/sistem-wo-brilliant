@@ -1,0 +1,68 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,500;1,600&family=Montserrat:wght@400;500;600&display=swap');
+
+.font-playfair {
+    font-family: 'Playfair Display', Georgia, serif;
+}
+
+.font-montserrat {
+    font-family: 'Montserrat', 'Poppins', sans-serif;
+}
+
+@keyframes luxury-float {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-6px);
+    }
+}
+
+.animate-luxury-float {
+    animation: luxury-float 3.5s ease-in-out infinite;
+}
+
+#loading-overlay-premium.hidden {
+    display: none !important;
+    pointer-events: none !important;
+    visibility: hidden;
+}
+
+#loading-overlay-premium.is-visible {
+    display: flex;
+    pointer-events: auto;
+    background: transparent !important;
+    backdrop-filter: none !important;
+}
+
+/* Tanpa backdrop gelap — cincin sebagai pusat visual */
+.loading-premium-rings__img {
+    filter: drop-shadow(0 8px 24px rgba(0, 163, 42, 0.22))
+            drop-shadow(0 4px 12px rgba(251, 191, 36, 0.28));
+    animation: ring-soft-pulse 2.8s ease-in-out infinite;
+}
+
+@keyframes ring-soft-pulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.04);
+        opacity: 0.92;
+    }
+}
+
+.loading-premium-caption {
+    text-shadow: 0 1px 8px rgba(255, 255, 255, 0.95),
+                 0 0 2px rgba(255, 255, 255, 0.9);
+}
+
+#loading-overlay-premium.is-hiding {
+    opacity: 0;
+    transition: opacity 80ms ease-out;
+}
+
+#loading-overlay-premium:not(.hidden) {
+    opacity: 1;
+    transition: opacity 120ms ease-in;
+}

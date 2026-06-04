@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">
+  <defs>
+    <linearGradient id="goldGrad" x1="0" x2="1">
+      <stop offset="0" stop-color="#FFD471"/>
+      <stop offset="0.5" stop-color="#F6C85F"/>
+      <stop offset="1" stop-color="#E8A03F"/>
+    </linearGradient>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <!-- Interlocked wedding rings -->
+  <g fill="none" stroke="url(#goldGrad)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" filter="url(#shadow)">
+    <ellipse cx="86" cy="128" rx="54" ry="48" transform="rotate(-12 86 128)"/>
+    <ellipse cx="142" cy="96" rx="50" ry="44" transform="rotate(8 142 96)"/>
+  </g>
+
+  <!-- Diamond on front ring -->
+  <g transform="translate(150,60) scale(0.75)">
+    <polygon points="0,12 6,0 18,0 24,12 18,24 6,24" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="1"/>
+    <path d="M12 0 L18 12 L12 24 L6 12 Z" fill="#FFFFFF" opacity="0.85"/>
+  </g>
+
+  <!-- Small sparkle accent -->
+  <g fill="#FFF3C4" opacity="0.95">
+    <circle cx="190" cy="46" r="5"/>
+    <circle cx="198" cy="58" r="3"/>
+  </g>
+</svg>

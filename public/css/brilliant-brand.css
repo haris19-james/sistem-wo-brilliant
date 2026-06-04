@@ -1,0 +1,20 @@
+/**
+ * Brilliant WO — warna identitas dari logo
+ */
+:root {
+    --brilliant-bottle: #00A32A;
+    --brilliant-bottle-hover: #008F24;
+    --brilliant-bottle-bright: #22D43B;
+    --brilliant-lime: #6EF07F;
+    --brilliant-leaf-soft: #EDFCF0;
+    --brilliant-leaf: #C5F5CC;
+    --brilliant-leaf-bg: #D4F9DC;
+    --brilliant-ink: #111111;
+}
+
+/* Fokus form mengikuti hijau logo */
+input:focus,
+select:focus,
+textarea:focus {
+    --tw-ring-color: var(--brilliant-bottle-bright);
+}

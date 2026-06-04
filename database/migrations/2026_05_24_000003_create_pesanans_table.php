@@ -1,0 +1,38 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('pesanans', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+            $table->foreignId('paket_id')->constrained('pakets')->onDelete('restrict');
+            $table->string('nomor_pesanan')->unique();
+            $table->string('nama_pasangan');
+            $table->date('tanggal_acara');
+            $table->time('jam_acara');
+            $table->string('lokasi');
+            $table->string('tema')->nullable();
+            $table->integer('jumlah_tamu')->default(0);
+            $table->enum('status', ['Menunggu', 'Sedang Berlangsung', 'Selesai', 'Dibatalkan'])->default('Menunggu');
+            $table->text('catatan_khusus')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('pesanans');
+    }
+};

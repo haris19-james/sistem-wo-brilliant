@@ -1,0 +1,89 @@
+/**
+ * Tim Lapangan — token visual (selaras dengan --brilliant-* di brilliant-brand.css)
+ */
+:root {
+    --lp-primary: var(--brilliant-bottle);
+    --lp-primary-hover: var(--brilliant-bottle-hover);
+    --lp-primary-bright: var(--brilliant-bottle-bright);
+    --lp-surface: var(--brilliant-leaf-soft);
+    --lp-border: var(--brilliant-leaf);
+    --lp-border-soft: color-mix(in srgb, var(--brilliant-leaf) 55%, white);
+}
+
+.lp-sidebar-link--active {
+    background-color: var(--lp-surface);
+    color: var(--lp-primary);
+    border: 1px solid var(--lp-border-soft);
+}
+
+.lp-sidebar-link {
+    color: #475569;
+}
+
+.lp-sidebar-link:hover {
+    background-color: color-mix(in srgb, var(--lp-surface) 70%, white);
+    color: var(--lp-primary);
+}
+
+.lp-badge {
+    background-color: var(--lp-surface);
+    color: var(--lp-primary);
+    border: 1px solid var(--lp-border-soft);
+}
+
+.lp-btn-primary {
+    background-color: var(--lp-primary);
+    color: #fff;
+}
+
+.lp-btn-primary:hover {
+    background-color: var(--lp-primary-hover);
+}
+
+.lp-btn-outline {
+    color: var(--lp-primary);
+    border: 1px solid var(--lp-border);
+    background-color: color-mix(in srgb, var(--lp-surface) 80%, white);
+}
+
+.lp-btn-outline:hover {
+    background-color: var(--lp-surface);
+    color: var(--lp-primary-hover);
+}
+
+.lp-progress-track {
+    background-color: var(--lp-border);
+}
+
+.lp-progress-fill {
+    background: linear-gradient(90deg, var(--lp-primary) 0%, var(--lp-primary-bright) 100%);
+}
+
+.lp-card {
+    border-color: var(--lp-border-soft);
+}
+
+.lp-card:hover {
+    border-color: var(--lp-border);
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--lp-primary) 8%, transparent);
+}
+
+.lp-link {
+    color: var(--lp-primary);
+}
+
+.lp-link:hover {
+    color: var(--lp-primary-hover);
+}
+
+.lp-icon-wrap {
+    background-color: color-mix(in srgb, var(--lp-surface) 90%, white);
+    color: var(--lp-primary);
+    border: 1px solid var(--lp-border-soft);
+}
+
+.lp-empty-icon {
+    background: radial-gradient(circle at 30% 30%, var(--lp-surface) 0%, color-mix(in srgb, var(--lp-border) 40%, white) 100%);
+    color: var(--lp-primary);
+    border: 1px dashed var(--lp-border);
+}
