@@ -67,19 +67,23 @@ C:\xampp\htdocs\
 
 ## 📸 Screenshots
 
-### Dashboard
+### 🏠 Beranda
+
+![Beranda](screenshots-wo/Screenshot%202026-06-05%20162226.png)
+
+### 📊 Dashboard
 
 ![Dashboard](screenshots-wo/Screenshot%202026-06-05%20160815.png)
 
-### Halaman Login
+### 🔐 Halaman Login
 
 ![Login](screenshots-wo/Screenshot%202026-06-05%20161015.png)
 
-### Data Paket
+### 📦 Data Paket
 
 ![Paket](screenshots-wo/Screenshot%202026-06-05%20161452.png)
 
-### Transaksi
+### 💳 Transaksi
 
 ![Transaksi](screenshots-wo/Screenshot%202026-06-05%20161956.png)
 
