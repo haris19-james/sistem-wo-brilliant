@@ -65,17 +65,23 @@ C:\xampp\htdocs\
 
 5. Jalankan web server dan akses melalui browser.
 
-## 📸 Tampilan Sistem
+## 📸 Screenshots
 
-Tambahkan screenshot aplikasi pada bagian ini.
+### Login Page
+
+![Login](screenshots-wo/login.png)
 
 ### Dashboard
 
-![Dashboard](screenshots/dashboard.png)
+![Dashboard](screenshots-wo/dashboard.png)
 
-### Halaman Pemesanan
+### Data Paket
 
-![Pemesanan](screenshots/pemesanan.png)
+![Data Paket](screenshots-wo/paket.png)
+
+### Transaksi
+
+![Transaksi](screenshots-wo/transaksi.png)
 
 ## 🎯 Tujuan Pengembangan
 
