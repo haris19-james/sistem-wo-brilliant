@@ -67,21 +67,21 @@ C:\xampp\htdocs\
 
 ## 📸 Screenshots
 
-### Login Page
-
-![Login](screenshots-wo/login.png)
-
 ### Dashboard
 
-![Dashboard](screenshots-wo/dashboard.png)
+![Dashboard](screenshots-wo/Screenshot%202026-06-05%20160815.png)
+
+### Halaman Login
+
+![Login](screenshots-wo/Screenshot%202026-06-05%20161015.png)
 
 ### Data Paket
 
-![Data Paket](screenshots-wo/paket.png)
+![Paket](screenshots-wo/Screenshot%202026-06-05%20161452.png)
 
 ### Transaksi
 
-![Transaksi](screenshots-wo/transaksi.png)
+![Transaksi](screenshots-wo/Screenshot%202026-06-05%20161956.png)
 
 ## 🎯 Tujuan Pengembangan
 
