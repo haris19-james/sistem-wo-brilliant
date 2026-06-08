@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\Pesanan;
 use App\Models\Tugas;
 use App\Models\User;
+use App\Models\VendorMeeting;
+use App\Services\NotificationCenterService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -59,6 +61,12 @@ class BookingLapanganActivationService
 
         $pesanan->update($updates);
         $pesanan->refresh();
+
+        if ($pesanan->korlap_id) {
+            VendorMeeting::query()
+                ->where('booking_id', $pesanan->id)
+                ->update(['korlap_id' => $pesanan->korlap_id]);
+        }
 
         $tasksCreated = $this->vendorFieldTaskService->provisionTasksForPesanan($pesanan);
 

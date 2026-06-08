@@ -59,7 +59,7 @@
             panel="lapangan"
             :active-menu="$active"
             :rundown-url="route('lapangan.jadwal')"
-            :meeting-url="route('lapangan.jadwal').'#vendor-meetings'"
+            :meeting-url="route('lapangan.jadwal', ['section' => 'meetings']).'#vendor-meetings'"
             :rundown-locked="$jadwalNavRundownLocked ?? true"
             :meeting-locked="$jadwalNavMeetingLocked ?? true"
             :lock-hint="$jadwalNavLockHint ?? null"

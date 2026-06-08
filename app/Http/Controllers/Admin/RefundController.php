@@ -5,20 +5,12 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Pesanan;
 use App\Services\RefundService;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use App\Services\BookingCancellationService;
+use App\Models\RefundAudit;
+use Illuminate\Support\Facades\Redirect;
 
-/**
- * RefundController - Handle refund requests untuk admin
- * 
- * Controller ini mengelola:
- * 1. Preview perhitungan refund sebelum proses
- * 2. Proses refund dengan automatic notification ke 3 role
- * 3. Riwayat refund untuk booking
- * 
- * @author WO System
- */
 class RefundController extends Controller
 {
     protected $refundService;
@@ -27,138 +19,136 @@ class RefundController extends Controller
     {
         $this->refundService = $refundService;
         $this->middleware('auth');
-        $this->middleware('admin'); // Hanya admin yang bisa akses
+        $this->middleware('admin');
     }
 
-    /**
-     * GET /admin/refund/{pesanan}/preview
-     * 
-     * Menampilkan preview perhitungan refund tanpa mengubah database
-     * Digunakan untuk menampilkan estimated amount kepada admin sebelum confirm
-     * 
-     * @param Pesanan $pesanan
-     * @param Request $request - query param: penalty_percent (default 0)
-     * @return JsonResponse
-     */
     public function preview(Pesanan $pesanan, Request $request): JsonResponse
     {
-        $penaltyPercent = (int) $request->query('penalty_percent', 0);
+        $penaltyPercent = (int) $request->query('penalty_percent', 20);
 
-        $preview = $this->refundService->getRefundPreview(
-            $pesanan->id,
-            $penaltyPercent
-        );
+        $preview = $this->refundService->getRefundPreview($pesanan->id, $penaltyPercent);
 
         return response()->json($preview);
     }
 
-    /**
-     * POST /admin/refund/{pesanan}/process
-     * 
-     * Proses refund untuk booking
-     * 
-     * Flow:
-     * 1. Validasi status pembayaran (harus dp_paid atau fully_paid)
-     * 2. Hitung refund otomatis: finalRefund = dpAmount - (dpAmount * penaltyPercent/100)
-     * 3. Update pesanan status menjadi 'refunded' dan 'cancelled'
-     * 4. Simpan nominal refund di database
-     * 5. Otomatis kirim notifikasi ke Admin, Client, dan Korlap
-     * 6. Return response dengan detail refund
-     * 
-     * @param Pesanan $pesanan
-     * @param Request $request - body: penalty_percent (int, default 0), alasan_refund (string, optional)
-     * @return JsonResponse
-     * 
-     * @example
-     * POST /admin/refund/123/process
-     * {
-     *   "penalty_percent": 20,
-     *   "alasan_refund": "Client meminta pembatalan karena kondisi mendadak"
-     * }
-     * 
-     * Response:
-     * {
-     *   "success": true,
-     *   "message": "Refund berhasil diproses dan notifikasi telah dikirim ke semua pihak",
-     *   "data": {
-     *     "pesanan_id": 123,
-     *     "pesanan_number": "WO-2024-001",
-     *     "client_name": "John Doe",
-     *     "dp_amount": 5000000,
-     *     "penalty_percent": 20,
-     *     "penalty_amount": 1000000,
-     *     "final_refund": 4000000,
-     *     "alasan": "Client meminta pembatalan..."
-     *   }
-     * }
-     */
-    public function process(Pesanan $pesanan, Request $request): JsonResponse
+    public function pendingIndex(): \Illuminate\View\View
     {
-        // Validasi input
+        $pendings = Pesanan::where('status_pemesanan', 'pending_cancellation')
+            ->with('user')
+            ->orderByDesc('pembatalan_diminta_at')
+            ->get();
+
+        return view('admin.modules.booking.pending_cancellations', ['pendings' => $pendings]);
+    }
+
+    public function approve(Pesanan $pesanan, Request $request, BookingCancellationService $cancellationService): \Illuminate\Http\RedirectResponse
+    {
         $validated = $request->validate([
-            'penalty_percent' => 'required|integer|min:0|max:100',
-            'alasan_refund' => 'nullable|string|max:500',
+            'refund_dp' => 'nullable|boolean',
+            'jumlah_refund' => 'nullable|numeric|min:0',
         ]);
 
-        // Proses refund
-        $result = $this->refundService->processRefund(
-            pesananId: $pesanan->id,
-            penaltyPercent: $validated['penalty_percent'],
-            alasanRefund: $validated['alasan_refund'] ?? null
+        $refundDp = (bool) ($validated['refund_dp'] ?? false);
+        $jumlah = isset($validated['jumlah_refund']) ? (float) $validated['jumlah_refund'] : null;
+
+        $final = $cancellationService->approvePendingCancellation($pesanan, $refundDp, $jumlah);
+
+        // create audit if refund > 0
+        if ((float) ($final->jumlah_refund ?? 0) > 0) {
+            RefundAudit::create([
+                'pesanan_id' => $pesanan->id,
+                'admin_id' => auth()->id(),
+                'dp_amount' => $final->invoices()->first()?->dp_dibayar ?? 0,
+                'penalty_percent' => 20,
+                'penalty_amount' => round((float) ($final->invoices()->first()?->dp_dibayar ?? 0) * 0.20, 2),
+                'final_refund' => (float) $final->jumlah_refund,
+                'note' => 'Disetujui oleh admin via dashboard',
+            ]);
+        }
+
+        // send notification to client
+        $notif = app(\App\Services\NotificationCenterService::class);
+        $notif->notifyUser(
+            $pesanan->user_id,
+            'Refund pembatalan telah diproses: Rp '.number_format($final->jumlah_refund ?? 0, 0, ',', '.'),
+            route('client.pesanan_detail', $pesanan->id),
+            'urgent',
+            'refund'
         );
 
-        // Return dengan status code yang sesuai
-        $statusCode = $result['success'] ? 200 : 422;
-
-        return response()->json($result, $statusCode);
+        return Redirect::back()->with('success', 'Permintaan pembatalan disetujui dan refund dicatat.');
     }
 
-    /**
-     * GET /admin/refund
-     * 
-     * Menampilkan daftar pesanan yang eligible untuk refund
-     * (status pembayaran: dp_paid atau fully_paid)
-     * 
-     * @return JsonResponse
-     */
-    public function listEligible(): JsonResponse
+    public function deny(Pesanan $pesanan, Request $request): \Illuminate\Http\RedirectResponse
     {
-        $eligibleBookings = Pesanan::whereIn(
-            'status_pembayaran',
-            ['dp_paid', 'fully_paid']
-        )
-        ->where('status_pemesanan', '!=', 'canceled')
-        ->with('user', 'korlap')
-        ->orderByDesc('created_at')
-        ->get()
-        ->map(function ($pesanan) {
-            $invoice = $pesanan->invoices()->first();
-            return [
-                'id' => $pesanan->id,
-                'nomor_pesanan' => $pesanan->nomor_pesanan,
-                'nama_pasangan' => $pesanan->nama_pasangan,
-                'client_name' => $pesanan->user->name,
-                'tanggal_acara' => $pesanan->tanggal_acara,
-                'status_pembayaran' => $pesanan->status_pembayaran,
-                'dp_dibayar' => $invoice?->dp_dibayar ?? 0,
-            ];
-        });
+        // revert pending cancellation
+        $pesanan->forceFill([
+            'status_pemesanan' => 'confirmed',
+            'alasan_pembatalan' => null,
+            'pembatalan_diminta_at' => null,
+            'jumlah_refund' => 0,
+        ])->save();
 
-        return response()->json([
-            'success' => true,
-            'total' => $eligibleBookings->count(),
-            'data' => $eligibleBookings,
-        ]);
+        // notify client
+        app(\App\Services\NotificationCenterService::class)->notifyUser(
+            $pesanan->user_id,
+            "Permintaan pembatalan untuk {$pesanan->nomor_pesanan} ditolak oleh Admin.",
+            route('client.pesanan_detail', $pesanan->id),
+            'urgent',
+            'cancellation'
+        );
+
+        return Redirect::back()->with('success', 'Permintaan pembatalan ditolak.');
     }
 
-    /**
-     * GET /admin/pesanan/{pesanan}/refund-status
-     * 
-     * Check status refund untuk booking
-     * 
-     * @param Pesanan $pesanan
-     * @return JsonResponse
-     */
+    public function process(Pesanan $pesanan, Request $request)
+    {
+        $validated = $request->validate([
+            'penalty_percent' => 'nullable|integer|min:0|max:100',
+            'alasan_refund' => 'nullable|string|max:500',
+            'bukti_transfer' => 'required|file|mimes:jpg,jpeg,png,webp,gif|max:'.(int) (config('pembayaran.bukti_max_kb', 10240)),
+        ]);
+
+        $file = $request->file('bukti_transfer');
+        $path = Storage::disk('public')->putFileAs(
+            'refund_proofs',
+            $file,
+            'refund-proof-'.$pesanan->id.'-'.now()->format('YmdHis').'.'.$file->extension()
+        );
+
+        $buktiTransferUrl = Storage::disk('public')->url($path);
+        $penalty = $validated['penalty_percent'] ?? 20;
+
+        $result = $this->refundService->processRefund(
+            $pesanan->id,
+            $penalty,
+            $validated['alasan_refund'] ?? null,
+            $buktiTransferUrl
+        );
+
+        if ($result['success']) {
+            app(\App\Services\NotificationCenterService::class)->notifyUser(
+                $pesanan->user_id,
+                'Refund Anda sebesar Rp '.number_format($result['data']['final_refund'], 0, ',', '.').' telah dikirimkan. Silakan cek bukti transfer di dasbor.',
+                route('client.pesanan_detail', $pesanan->id),
+                'urgent',
+                'refund'
+            );
+
+            if ($request->wantsJson()) {
+                return response()->json($result);
+            }
+
+            return Redirect::back()->with('success', $result['message']);
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json($result, 422);
+        }
+
+        return Redirect::back()->withErrors(['refund' => $result['message']]);
+    }
+
     public function status(Pesanan $pesanan): JsonResponse
     {
         $isRefunded = $pesanan->status_pembayaran === 'refunded';

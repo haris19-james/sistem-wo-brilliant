@@ -27,6 +27,49 @@
                     <div>
                         <p class="text-gray-500">Status Persiapan</p>
                         <span class="inline-flex mt-0.5 px-2 py-0.5 rounded-full text-xs font-semibold {{ $pesanan->status_badge_class }}">{{ $pesanan->status_label }}</span>
+
+                    @if($pesanan->pembatalan_diminta_at && $pesanan->status !== 'Dibatalkan & Refund Diproses')
+                        <div class="mt-6 bg-white shadow sm:rounded-lg p-4">
+                            <h3 class="text-lg font-medium text-gray-900">Manajemen Refund</h3>
+                            @php
+                                $preview = app(\App\Services\RefundService::class)->getRefundPreview($pesanan->id, 20);
+                            @endphp
+
+                            <div class="mt-3 grid grid-cols-1 gap-2 text-sm text-gray-700">
+                                <div class="flex justify-between"><span>Total DP Masuk</span><strong>Rp {{ number_format($preview['dp_amount'] ?? 0, 0, ',', '.') }}</strong></div>
+                                <div class="flex justify-between"><span>Potongan Administrasi (20%)</span><strong>Rp {{ number_format($preview['penalty_amount'] ?? 0, 0, ',', '.') }}</strong></div>
+                                <div class="flex justify-between"><span>Jumlah yang harus direfund ke Klien</span><strong class="text-green-700">Rp {{ number_format($preview['final_refund'] ?? 0, 0, ',', '.') }}</strong></div>
+                            </div>
+
+                            <form method="POST" action="{{ route('admin.booking.refund.process', $pesanan) }}" enctype="multipart/form-data" class="mt-4" onsubmit="return confirm('Setujui refund dan proses sekarang?');">
+                                @csrf
+                                <input type="hidden" name="penalty_percent" value="20">
+
+                                <div class="grid gap-4">
+                                    <div>
+                                        <label class="block text-sm font-semibold text-gray-700">Bukti Transfer</label>
+                                        <input type="file" name="bukti_transfer" id="bukti_transfer" accept="image/jpeg,image/png,image/webp,image/gif" required class="mt-1 block w-full text-sm text-gray-700">
+                                        @error('bukti_transfer')<p class="text-red-600 text-xs mt-1 font-medium">{{ $message }}</p>@enderror
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-sm text-gray-600">Catatan (opsional)</label>
+                                        <textarea name="alasan_refund" class="mt-1 block w-full border rounded p-2" rows="2" placeholder="Catatan audit atau keterangan bahwa klien menyetujui potongan 20%.">{{ old('alasan_refund') }}</textarea>
+                                    </div>
+                                </div>
+
+                                @if($pesanan->bukti_transfer_url)
+                                <div class="mt-4 rounded-xl border border-green-100 bg-green-50 p-4 text-sm text-green-800">
+                                    Bukti transfer sudah diunggah: <a href="{{ $pesanan->bukti_transfer_url }}" target="_blank" class="font-semibold underline">Lihat bukti</a>
+                                </div>
+                                @endif
+
+                                <div class="mt-3">
+                                    <button type="submit" class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded">Setujui Refund & Proses</button>
+                                </div>
+                            </form>
+                        </div>
+                    @endif
                         @if($pesanan->progress)
                         <span class="text-xs text-gray-500 ml-1">({{ $pesanan->progress->persentase }}%)</span>
                         @endif
@@ -42,7 +85,7 @@
                     @if($pesanan->estimasi_budget)
                     <p class="text-sm text-gray-700 mb-2"><span class="text-gray-500">Budget:</span> <span class="font-semibold text-bottle">Rp {{ number_format($pesanan->estimasi_budget, 0, ',', '.') }}</span></p>
                     @endif
-                    @php $vendorsKustom = $pesanan->vendors()->orderBy('kategori')->orderBy('nama_vendor')->get(); @endphp
+                    @php $vendorsKustom = $pesanan->vendors()->orderBy('kategori')->orderBy('nama_vendor')->get() ?? collect(); @endphp
                     @if($vendorsKustom->isNotEmpty())
                     <p class="text-xs text-gray-500 mb-2">Vendor dipilih customer:</p>
                     <div class="flex flex-wrap gap-2">
@@ -56,6 +99,86 @@
                     <p class="text-xs text-gray-500">Belum ada vendor dipilih.</p>
                     @endif
                 </div>
+                @endif
+            </div>
+
+            <div class="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                    <div>
+                        <h3 class="font-bold text-gray-900">Tugas Lapangan</h3>
+                        <p class="text-xs text-gray-500">Lihat status tugas vendor, verifikasi tugas, dan selesaikan booking jika semua tugas sudah selesai.</p>
+                    </div>
+                    @php
+                        $tugasCollection = $pesanan->tugas ?? collect();
+                        $totalTasks = $tugasCollection->count();
+                        $completedTasks = $tugasCollection->where('status', 'completed')->count();
+                        $awaitingVerificationTasks = $tugasCollection->where('status', 'awaiting_verification')->count();
+                    @endphp
+                    <div class="text-right text-xs text-gray-500">
+                        <div>Total tugas: <span class="font-semibold text-gray-900">{{ $totalTasks }}</span></div>
+                        <div>Diverifikasi: <span class="font-semibold text-gray-900">{{ $completedTasks }}</span></div>
+                        <div>Menunggu verifikasi: <span class="font-semibold text-gray-900">{{ $awaitingVerificationTasks }}</span></div>
+                    </div>
+                </div>
+
+                @if($pesanan->tugas->isEmpty())
+                    <p class="text-sm text-gray-500">Belum ada tugas lapangan yang dibuat untuk booking ini.</p>
+                @else
+                    <div class="space-y-4">
+                        @foreach($pesanan->tugas as $tugas)
+                            <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                                <div class="flex flex-col sm:flex-row sm:justify-between gap-3">
+                                    <div>
+                                        <p class="text-xs text-gray-500">Vendor</p>
+                                        <p class="font-semibold text-gray-900">{{ $tugas->vendor?->nama_vendor ?? 'N/A' }}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-gray-500">Tugas</p>
+                                        <p class="font-semibold text-gray-900">{{ $tugas->nama_tugas }}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-gray-500">Status</p>
+                                        <p class="font-semibold text-gray-900">{{ $tugas->status_label }}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-gray-500">Progress</p>
+                                        <p class="font-semibold text-gray-900">{{ $tugas->progress }}%</p>
+                                    </div>
+                                </div>
+                                <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-gray-600">
+                                    <div><span class="font-semibold text-gray-900">PIC:</span> {{ $tugas->pic?->name ?? 'Belum ditentukan' }}</div>
+                                    <div><span class="font-semibold text-gray-900">Deadline:</span> {{ $tugas->deadline?->format('d M Y H:i') ?? '-' }}</div>
+                                </div>
+                                @if(($tugas->checklists ?? collect())->isNotEmpty())
+                                    <div class="mt-4">
+                                        <p class="text-xs text-gray-500 mb-2">Checklist</p>
+                                        <div class="grid gap-2">
+                                            @foreach($tugas->checklists as $checklist)
+                                                <div class="flex items-center gap-2 text-sm text-gray-700">
+                                                    <span class="inline-flex h-4 w-4 rounded-full {{ $checklist->is_completed ? 'bg-green-600' : 'bg-gray-300' }}"></span>
+                                                    <span class="{{ $checklist->is_completed ? 'line-through text-gray-500' : '' }}">{{ $checklist->deskripsi }}</span>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endif
+                                <div class="mt-4 flex flex-wrap gap-2">
+                                    @if($tugas->status === 'awaiting_verification')
+                                        <form method="POST" action="{{ route('admin.booking.tugas.verify', [$pesanan, $tugas]) }}" class="inline">
+                                            @csrf
+                                            <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-bottle text-white text-sm font-semibold hover:bg-bottleHover transition">Verifikasi Tugas</button>
+                                        </form>
+                                    @endif
+                                    @if(! in_array($tugas->status, ['completed', 'cancelled'], true))
+                                        <form method="POST" action="{{ route('admin.booking.tugas.force_finish', [$pesanan, $tugas]) }}" class="inline" onsubmit="return confirm('Tandai tugas ini selesai secara paksa?');">
+                                            @csrf
+                                            <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition">Force Finish</button>
+                                        </form>
+                                    @endif
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
                 @endif
             </div>
 
@@ -143,6 +266,7 @@
             @php
                 $workflowLabel = $pesanan->workflow_status_label ?? 'Pending';
                 $workflowBadge = match($workflowLabel) {
+                    'Pending Verification' => 'bg-sky-50 text-sky-800 border-sky-200',
                     'Confirmed' => 'bg-green-50 text-green-800 border-green-200',
                     'Completed' => 'bg-gray-100 text-gray-700 border-gray-200',
                     default => 'bg-amber-50 text-amber-800 border-amber-200',
@@ -150,9 +274,12 @@
             @endphp
             <div class="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm h-fit">
                 <h3 class="font-bold text-gray-900 mb-2">Status Workflow</h3>
-                <p class="text-xs text-gray-500 mb-3">Pending = menunggu DP · Confirmed = DP/Lunas terverifikasi · Completed = acara selesai</p>
+                <p class="text-xs text-gray-500 mb-3">Pending = menunggu pembayaran awal · Pending Verification = lunas penuh menunggu verifikasi lapangan · Confirmed = aktif untuk tim lapangan · Completed = acara selesai</p>
                 <span class="inline-flex px-3 py-1 rounded-full text-xs font-bold border {{ $workflowBadge }}">{{ $workflowLabel }}</span>
                 <p class="text-xs text-gray-600 mt-2">Pembayaran: <strong>{{ $pesanan->status_pembayaran_label }}</strong></p>
+                @if($pesanan->status_pemesanan === 'pending_verification' && $pesanan->status_pembayaran === 'fully_paid')
+                    <p class="text-xs text-sky-700 mt-2">Booking sudah lunas penuh. Verifikasi lapangan diperlukan sebelum tugas vendor dapat dibuat.</p>
+                @endif
                 @if($pesanan->korlap)
                 <p class="text-xs text-gray-600 mt-1">Korlap: <strong>{{ $pesanan->korlap->name }}</strong></p>
                 @endif

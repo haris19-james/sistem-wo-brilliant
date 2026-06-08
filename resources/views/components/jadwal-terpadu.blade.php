@@ -118,9 +118,11 @@
                 @endforeach
             </div>
             @else
-            <div class="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                <p class="text-sm text-gray-600">Belum ada jadwal vendor atau agenda mandiri.</p>
-                @if($panel === 'admin')
+            <div class="text-center py-12 rounded-xl border-2 border-dashed {{ $panel === 'client' ? 'border-bottle/25 bg-gradient-to-br from-leafSoft/50 to-white' : 'border-gray-200 bg-gray-50' }}">
+                <p class="text-sm font-semibold text-gray-700">Belum ada jadwal meeting</p>
+                @if($panel === 'client')
+                <p class="text-xs text-gray-500 mt-1 max-w-sm mx-auto">Jadwal meeting vendor untuk booking <strong>{{ $mainEvent?->nomor_pesanan }}</strong> akan tampil di sini setelah dijadwalkan tim Brilliant.</p>
+                @elseif($panel === 'admin')
                 <p class="text-xs text-gray-400 mt-1">Tambahkan meeting vendor untuk pesanan ini.</p>
                 @endif
             </div>

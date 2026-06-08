@@ -65,10 +65,18 @@ class ChatController extends Controller
 
     public function sendMessage(Request $request, Pesanan $pesanan): JsonResponse
     {
-        $validated = $request->validate([
+        $validator = validator($request->all(), [
             'pesan' => ['required', 'string', 'max:2000'],
         ]);
 
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengirim pesan, silakan coba lagi.',
+            ], 422);
+        }
+
+        $validated = $validator->validated();
         $message = $this->bookingChat->sendStaffMessage($pesanan, Auth::user(), $validated['pesan']);
 
         return response()->json([

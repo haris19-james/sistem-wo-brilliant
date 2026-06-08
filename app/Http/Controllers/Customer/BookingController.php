@@ -143,28 +143,53 @@ class BookingController extends Controller
                 ->withErrors(['google_maps_url' => $mapsError]);
         }
 
-        app(BookingAvailabilityService::class)->assertDateAvailable(
-            $request,
-            $validated['tanggal_acara']
-        );
+        $availability = app(BookingAvailabilityService::class);
+        $availability->assertDateAvailable($request, $validated['tanggal_acara']);
+
+        // Validasi ketersediaan vendor untuk paket kustom
+        if ($paket->isPaketKustom()) {
+            $availability->assertVendorsAvailable($validated['vendor_ids'] ?? [], $validated['tanggal_acara'], $request);
+        }
 
         $detailKustom = null;
         $estimasiBudget = null;
+        $vendorSnapshotTotal = 0.0;
 
         if ($paket->isPaketKustom()) {
             $estimasiBudget = (float) $validated['estimasi_budget'];
-            $detailKustom = PaketBudgetMatcher::buildDetailText(
-                $estimasiBudget,
-                $validated['catatan_kustom_tambahan'] ?? null
-            );
+
+            // Ambil snapshot vendor terpilih dan jumlahkan harga mereka
+            $vendors = \App\Models\Vendor::whereIn('id', $validated['vendor_ids'] ?? [])->get(['id', 'nama_vendor', 'kategori', 'lokasi', 'harga_info']);
+            $snapshot = [];
+            foreach ($vendors as $v) {
+                $price = \App\Support\MoneyParser::toFloat($v->harga_info);
+                $snapshot[] = [
+                    'id' => $v->id,
+                    'nama_vendor' => $v->nama_vendor,
+                    'kategori' => $v->kategori,
+                    'lokasi' => $v->lokasi,
+                    'harga_info' => $v->harga_info,
+                    'price' => $price,
+                ];
+                $vendorSnapshotTotal += $price;
+            }
+
+            $detailKustom = json_encode([
+                'vendors' => $snapshot,
+                'total_biaya' => round($vendorSnapshotTotal, 2),
+                'catatan' => $validated['catatan_kustom_tambahan'] ?? null,
+            ], JSON_UNESCAPED_UNICODE);
         }
 
-        $totalBiaya = $paket->isPaketKustom()
-            ? (float) ($validated['estimasi_budget'] ?? 0)
-            : app(PaketBookingDefaultsService::class)->totalBiayaStandar(
+        $totalBiaya = null;
+        if ($paket->isPaketKustom()) {
+            $totalBiaya = $vendorSnapshotTotal > 0 ? $vendorSnapshotTotal : (float) ($validated['estimasi_budget'] ?? 0);
+        } else {
+            $totalBiaya = app(PaketBookingDefaultsService::class)->totalBiayaStandar(
                 $paket,
                 (int) $validated['jumlah_tamu']
             );
+        }
 
         $surcharge = app(PaketBookingDefaultsService::class)->guestSurcharge(
             $paket,

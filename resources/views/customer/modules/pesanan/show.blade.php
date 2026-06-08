@@ -160,7 +160,26 @@
                     </div>
                 </div>
                 @endif
-            </div>
+
+                @if($pesanan->status_pemesanan === 'pending_cancellation' || $pesanan->status_pembayaran === 'refunded')
+                <div class="{{ $cardClass }}">
+                    <h3 class="font-bold text-gray-900 mb-3">Riwayat Refund</h3>
+                    <div class="space-y-3 text-sm text-gray-700">
+                        <div class="flex justify-between"><span>Status</span><strong>{{ $pesanan->status_pemesanan === 'pending_cancellation' ? 'Diproses' : 'Selesai' }}</strong></div>
+                        <div class="flex justify-between"><span>Jumlah Refund</span><strong>Rp {{ number_format($pesanan->jumlah_refund ?? 0, 0, ',', '.') }}</strong></div>
+                        <div class="flex justify-between"><span>Waktu Refund</span><strong>{{ optional($pesanan->waktu_transfer ?? $pesanan->dibatalkan_at)->format('d M Y H:i') ?? '-' }}</strong></div>
+                        @if($pesanan->bukti_transfer_url)
+                        <div class="flex justify-between items-center gap-3">
+                            <span>Bukti Transfer</span>
+                            <a href="{{ $pesanan->bukti_transfer_url }}" target="_blank" class="font-semibold text-bottle hover:underline">Unduh / Lihat</a>
+                        </div>
+                        @endif
+                        @if($pesanan->alasan_pembatalan)
+                        <div class="flex justify-between"><span>Alasan Pembatalan</span><strong>{{ $pesanan->alasan_pembatalan }}</strong></div>
+                        @endif
+                    </div>
+                </div>
+                @endif
 
             @if($pesanan->status_pemesanan === 'pending_cancellation' && $pesanan->status_pembayaran !== 'unpaid')
             <div class="bg-yellow-50 rounded-xl border border-yellow-200 p-5 shadow-sm h-fit">

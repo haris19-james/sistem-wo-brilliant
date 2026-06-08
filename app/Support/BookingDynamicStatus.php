@@ -181,6 +181,14 @@ final class BookingDynamicStatus
 
     protected static function isWaitingPayment(Pesanan $pesanan): bool
     {
+        if (in_array($pesanan->status_pembayaran, ['dp_paid', 'fully_paid'], true)) {
+            return false;
+        }
+
+        if ($pesanan->hasMinimalDpPaid() || $pesanan->isPembayaranLunas()) {
+            return false;
+        }
+
         return $pesanan->status === self::DB_MENUNGGU
             || $pesanan->status_pembayaran === 'unpaid'
             || $pesanan->status_pemesanan === 'pending';

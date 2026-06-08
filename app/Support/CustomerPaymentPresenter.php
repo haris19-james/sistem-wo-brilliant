@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Invoice;
 use App\Models\Pesanan;
 use App\Services\PaymentDeadlineService;
+use App\Services\PaymentScheduleService;
 
 class CustomerPaymentPresenter
 {
@@ -88,8 +89,12 @@ class CustomerPaymentPresenter
             'banner' => $banner,
             'deadline' => $pesanan ? [
                 'tanggal' => $pesanan->tanggal_jatuh_tempo,
+                'label' => PaymentDeadlineService::activeTermLabel($pesanan, $invoice),
                 'status' => $pesanan->status_deadline ?? 'safe',
                 'days_left' => PaymentDeadlineService::daysUntilDeadline($pesanan),
+                'dp_due' => $invoice->jatuh_tempo_dp?->format('Y-m-d'),
+                'pelunasan_due' => $invoice->jatuh_tempo_pelunasan?->format('Y-m-d'),
+                'next_due' => PaymentScheduleService::nextDueDate($invoice, $pesanan)?->format('Y-m-d'),
             ] : null,
         ];
     }

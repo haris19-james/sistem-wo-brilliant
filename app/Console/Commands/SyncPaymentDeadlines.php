@@ -9,7 +9,7 @@ class SyncPaymentDeadlines extends Command
 {
     protected $signature = 'payment:sync-deadlines';
 
-    protected $description = 'Sinkronkan tanggal jatuh tempo pelunasan (H-14 event) dan status_deadline semua pesanan aktif';
+    protected $description = 'Sinkronkan tanggal jatuh tempo dinamis (DP/cicilan/pelunasan) dan status_deadline semua pesanan aktif';
 
     public function handle(): int
     {

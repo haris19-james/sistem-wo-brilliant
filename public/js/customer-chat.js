@@ -124,12 +124,16 @@
         if (!window.fetch || !form?.action) return;
 
         const pesan = input?.value?.trim();
-        if (!pesan) return;
+        if (!pesan) {
+            showError('Pesan tidak boleh kosong. Silakan tulis pesan terlebih dahulu.');
+            return;
+        }
 
         clearError();
         setSending(true);
 
         const body = new FormData(form);
+        console.log('[CustomerChat] sending payload', Array.from(body.entries()));
         const now = new Date();
         const optimisticTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
@@ -152,6 +156,7 @@
             });
 
             const data = await response.json().catch(() => ({}));
+            console.log('[CustomerChat] response', response.status, data);
 
             if (!response.ok || !data.success) {
                 throw new Error(data.message || 'Gagal mengirim pesan.');
@@ -168,8 +173,12 @@
             if (input) {
                 input.value = saved;
                 input.style.height = 'auto';
+                input.focus();
             }
-            showError(error.message || 'Gagal mengirim pesan. Coba lagi.');
+            const message = error.message && !/pesan/i.test(error.message)
+                ? error.message
+                : 'Gagal mengirim pesan. Silakan coba lagi.';
+            showError(message);
         } finally {
             setSending(false);
             hideGlobalLoading();

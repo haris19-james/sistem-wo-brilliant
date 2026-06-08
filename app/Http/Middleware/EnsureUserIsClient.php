@@ -13,16 +13,12 @@ class EnsureUserIsClient
     {
         $role = $request->user()?->role;
 
-        if ($role === Role::ADMIN) {
-            return redirect()->route('admin.dashboard');
-        }
-
-        if ($role === Role::LAPANGAN) {
-            return redirect()->route('lapangan.dashboard');
+        if (! $request->user()) {
+            return redirect()->route('login');
         }
 
         if (! Role::isClient($role)) {
-            return redirect()->route('login');
+            abort(403, 'Unauthorized access to client area.');
         }
 
         return $next($request);

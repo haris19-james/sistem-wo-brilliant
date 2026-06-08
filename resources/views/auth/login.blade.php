@@ -1,11 +1,11 @@
 @extends('layouts.auth-login')
 
-@section('title', 'Login Client - Brilliant WO')
+@section('title', 'Masuk - Brilliant WO')
 
-@section('role_label', 'Client')
+@section('role_label', 'Masuk')
 
 @section('subtitle')
-Kelola pesanan dan acara pernikahan Anda
+Masuk ke Brilliant WO dengan email dan kata sandi Anda.
 @endsection
 
 @section('content')
@@ -25,11 +25,6 @@ Kelola pesanan dan acara pernikahan Anda
 <p class="text-gray-600">
     Belum punya akun?
     <a href="{{ route('register') }}" data-no-loading class="text-bottle font-semibold hover:text-bottleHover hover:underline">Daftar</a>
-</p>
-<p>
-    <a href="{{ route('admin.login') }}" class="text-bottle font-medium hover:text-bottleHover hover:underline">Login Admin</a>
-    <span class="text-gray-300 mx-1">·</span>
-    <a href="{{ route('lapangan.login') }}" class="text-bottle font-medium hover:text-bottleHover hover:underline">Tim Lapangan</a>
 </p>
 <p>
     <a href="{{ route('home') }}" class="hover:text-bottle transition">← Beranda</a>

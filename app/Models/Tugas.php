@@ -111,7 +111,9 @@ class Tugas extends Model
     public function scopeForKorlap($query, int $korlapId)
     {
         return $query->whereHas('pesanan', function ($q) use ($korlapId) {
-            $q->where('korlap_id', $korlapId)->confirmedForLapangan();
+            $q->where('korlap_id', $korlapId)
+                ->where('status', '!=', 'Dibatalkan')
+                ->whereNotIn('status_pemesanan', ['cancelled', 'canceled', 'expired', 'pending_cancellation']);
         });
     }
 }

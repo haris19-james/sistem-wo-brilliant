@@ -5,20 +5,20 @@ namespace App\Http\Controllers\Lapangan;
 use App\Http\Controllers\Controller;
 use App\Models\JadwalMeeting;
 use App\Models\Pesanan;
-use App\Models\VendorMeeting;
+use App\Services\LapanganVendorMeetingService;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 
 class JadwalController extends Controller
 {
-    public function index()
+    public function index(Request $request, LapanganVendorMeetingService $meetingService)
     {
         $start = Carbon::today();
         $end = $start->copy()->addDays(30);
         $korlapId = auth()->id();
 
-        // ✅ Pesanan yang ditugaskan ke Korlap ini dan belum selesai
         $pesanans = Pesanan::where('korlap_id', $korlapId)
-            ->with(['paket', 'progress', 'rundowns', 'jadwalMeetings'])
+            ->with(['paket', 'progress', 'rundowns', 'jadwalMeetings', 'user:id,name'])
             ->whereNotIn('status', ['Dibatalkan'])
             ->where(function ($q) use ($start, $end) {
                 $q->whereBetween('tanggal_acara', [$start, $end])
@@ -27,28 +27,51 @@ class JadwalController extends Controller
             ->orderBy('tanggal_acara')
             ->get();
 
-        // ✅ Jadwal meeting internal (dari tabel jadwal_meetings)
         $meetings = JadwalMeeting::with('pesanan')
             ->whereBetween('tanggal_meeting', [$start, $end])
             ->orderBy('tanggal_meeting')
             ->orderBy('waktu_meeting')
             ->get();
 
-        // ✅ VENDOR MEETINGS - Jadwal meeting vendor yang ditugaskan ke Korlap ini
-        // Tampilkan yang belum completed dan dalam 30 hari ke depan
-        $vendorMeetings = VendorMeeting::where('korlap_id', $korlapId)
-            ->whereIn('status', ['scheduled', 'ongoing'])  // Hanya yang belum selesai
-            ->whereBetween('meeting_date', [$start, $end])
-            ->with(['booking.user', 'booking.paket'])
-            ->orderBy('meeting_date')
-            ->orderBy('meeting_time')
-            ->get();
+        $meetingFilters = [
+            'tanggal' => $request->input('tanggal'),
+            'klien' => $request->input('klien', ''),
+            'status' => $request->input('status', 'semua'),
+        ];
+
+        $vendorMeetingData = $meetingService->groupedForKorlap($korlapId, $meetingFilters);
+
+        $bookingsForMeeting = Pesanan::visibleToKorlap($korlapId)
+            ->with(['user:id,name,email'])
+            ->orderByDesc('tanggal_acara')
+            ->get()
+            ->map(fn (Pesanan $p) => [
+                'id' => $p->id,
+                'nomor_pesanan' => $p->nomor_pesanan,
+                'client_name' => ($name = trim((string) ($p->user?->name ?? ''))) !== ''
+                    ? $name
+                    : trim((string) ($p->nama_pasangan ?? 'Klien')),
+                'nama_pasangan' => $p->nama_pasangan,
+                'tanggal_acara' => $p->tanggal_acara?->translatedFormat('d M Y') ?? '—',
+                'payment_label' => $p->status_pembayaran_label,
+            ])
+            ->values();
+
+        $activeMenu = $request->input('section') === 'meetings'
+            || $request->filled('tanggal')
+            || $request->filled('klien')
+            || $request->has('status')
+            ? 'jadwal-meeting'
+            : 'jadwal-rundown';
 
         return view('lapangan.modules.jadwal.index', [
-            'activeMenu' => 'jadwal-rundown',
+            'activeMenu' => $activeMenu,
             'pesanans' => $pesanans,
             'meetings' => $meetings,
-            'vendorMeetings' => $vendorMeetings,  // ✅ Kirim ke view
+            'meetingGroups' => $vendorMeetingData['groups'],
+            'meetingTotal' => $vendorMeetingData['total_meetings'],
+            'meetingFilters' => $vendorMeetingData['filters'],
+            'bookingsForMeeting' => $bookingsForMeeting,
         ]);
     }
 }

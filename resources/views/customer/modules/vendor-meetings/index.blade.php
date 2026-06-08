@@ -29,24 +29,17 @@
     </p>
   </div>
 
-  {{-- Meetings List --}}
+  {{-- Meetings List — dikelompokkan per booking_id --}}
   <div class="space-y-4">
-    @php
-      // Group meetings by pesanan
-      $groupedMeetings = collect();
-      foreach ($pesanan as $p) {
-        if ($p->vendorMeetings->isNotEmpty()) {
-          $groupedMeetings->push([
-            'pesanan' => $p,
-            'meetings' => $p->vendorMeetings->where('status', '!=', 'completed')->sortBy('meeting_date')->values()
-          ]);
-        }
-      }
-    @endphp
+    @php $groupedMeetings = $groupedMeetings ?? collect(); @endphp
 
     @if($groupedMeetings->count() > 0)
       @foreach($groupedMeetings as $group)
-      @php $p = $group['pesanan']; $meetings = $group['meetings']; @endphp
+      @php
+        $p = $group['pesanan'];
+        $meetings = ($group['meetings'] ?? collect())->where('status', '!=', 'completed')->sortBy('meeting_date')->values();
+        $hasNoMeetings = $group['has_no_meetings'] ?? $meetings->isEmpty();
+      @endphp
 
       <div class="bg-white border border-gray-100 rounded-2xl p-6 space-y-6">
         {{-- Pesanan Header --}}
@@ -75,6 +68,12 @@
         </div>
 
         {{-- Meetings Grid --}}
+        @if($hasNoMeetings)
+        <div class="text-center py-10 px-4 rounded-xl border-2 border-dashed border-bottle/25 bg-gradient-to-br from-leafSoft/40 to-white">
+          <p class="text-sm font-semibold text-gray-800">Belum ada jadwal meeting untuk booking ini</p>
+          <p class="text-xs text-gray-500 mt-1">Tim Brilliant akan menginformasikan jadwal meeting vendor melalui halaman ini.</p>
+        </div>
+        @else
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           @foreach($meetings as $meeting)
           @php
@@ -144,17 +143,18 @@
           </div>
           @endforeach
         </div>
+        @endif
       </div>
       @endforeach
 
     @else
-    <div class="text-center py-16 bg-gradient-to-br from-pink-50 to-white rounded-2xl border-2 border-dashed border-pink-200">
-      <svg class="w-16 h-16 text-pink-300 mx-auto mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+    <div class="text-center py-16 bg-gradient-to-br from-leafSoft/50 to-white rounded-2xl border-2 border-dashed border-bottle/30">
+      <svg class="w-16 h-16 text-bottle/40 mx-auto mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
         <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
       </svg>
       <h3 class="text-lg font-bold text-gray-900 mt-2">Belum Ada Jadwal Meeting</h3>
-      <p class="text-gray-600 mt-1">Admin akan membuat jadwal meeting ketika diperlukan</p>
-      <a href="{{ route('client.pesanan') }}" class="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 transition">
+      <p class="text-gray-600 mt-1">Jadwal meeting akan muncul setelah pembayaran DP terverifikasi atau lunas.</p>
+      <a href="{{ route('client.pesanan') }}" class="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-bottle text-white rounded-lg hover:bg-bottleHover transition">
         Lihat Pesanan
         <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>

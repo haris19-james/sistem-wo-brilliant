@@ -2,15 +2,15 @@
 
 namespace App\Services;
 
-use App\Models\OperasionalLapangan;
+use App\Models\Invoice;
 use App\Models\PembayaranKonfirmasi;
 use App\Models\Pesanan;
-use App\Services\AgendaGeneratorService;
-use App\Services\BookingCancellationService;
-use App\Services\BookingLapanganActivationService;
+use App\Services\NotificationCenterService;
+use App\Support\AdminPerformanceCache;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use App\Models\OperasionalLapangan;
 
 class PaymentWorkflowService
 {
@@ -23,43 +23,16 @@ class PaymentWorkflowService
         $konfirmasi->loadMissing(['invoice.pesanan']);
 
         $pesanan = $konfirmasi->invoice?->pesanan;
-        if (! $pesanan) {
+        if (! $pesanan || ! $konfirmasi->invoice) {
             return;
         }
 
         $invoice = $konfirmasi->invoice;
-        $isLunas = strtolower((string) $invoice->status) === 'lunas';
-        $isDpLunas = strtolower((string) $invoice->status) === 'dp lunas';
+        $invoice->recalculateStatus();
 
-        $paymentUpdate = [];
-        $accessLevel = $pesanan->akses_jadwal ?? 'none';
+        $accessLevel = $this->reconcilePesananWithInvoice($pesanan, $invoice, $konfirmasi);
 
-        if ($isLunas) {
-            $paymentUpdate = [
-                'status_pembayaran' => 'fully_paid',
-                'akses_jadwal' => 'full',
-                'status_pemesanan' => 'confirmed',
-                'fully_paid_by_admin_at' => now(),
-            ];
-            $accessLevel = 'full';
-        } elseif ($isDpLunas || in_array($konfirmasi->jenis_pembayaran, ['DP', 'Cicilan'], true)) {
-            if (in_array($pesanan->status_pembayaran, ['unpaid', 'dp_paid'], true)) {
-                $paymentUpdate = [
-                    'status_pembayaran' => $isLunas ? 'fully_paid' : 'dp_paid',
-                    'akses_jadwal' => $isLunas ? 'full' : 'partial',
-                    'status_pemesanan' => 'confirmed',
-                    'verified_admin_id' => Auth::id(),
-                    'verified_by_admin_at' => now(),
-                ];
-                $accessLevel = $isLunas ? 'full' : 'partial';
-            }
-        }
-
-        if ($paymentUpdate !== []) {
-            $pesanan->update($paymentUpdate);
-            $pesanan->refresh();
-            app(BookingCancellationService::class)->syncStatusBooking($pesanan);
-        }
+        $pesanan->refresh();
 
         if ($accessLevel === 'partial' && $pesanan->status_pembayaran === 'dp_paid') {
             try {
@@ -72,7 +45,7 @@ class PaymentWorkflowService
             }
         }
 
-        if (in_array($pesanan->status_pembayaran, ['dp_paid', 'fully_paid'], true)) {
+        if ($pesanan->status_pembayaran === 'dp_paid') {
             try {
                 app(BookingLapanganActivationService::class)->activate($pesanan->fresh());
             } catch (\Throwable $e) {
@@ -81,9 +54,117 @@ class PaymentWorkflowService
                     'error' => $e->getMessage(),
                 ]);
             }
+        } elseif ($pesanan->status_pembayaran === 'fully_paid'
+            && $pesanan->status_pemesanan === 'pending_verification') {
+            app(NotificationCenterService::class)->notifyAdmins(
+                "Booking {$pesanan->nomor_pesanan} sudah lunas. Menunggu verifikasi lapangan sebelum tugas dibuat.",
+                route('admin.booking.show', $pesanan->id),
+                'urgent',
+                'payment'
+            );
         }
 
         $this->allocateOperasional($pesanan->fresh(), $konfirmasi, $accessLevel);
+        $this->syncPaymentSchedule($konfirmasi->fresh(['invoice.pesanan']));
+
+        AdminPerformanceCache::forgetBookingStats();
+
+        Log::info('[PaymentWorkflow] Pembayaran disetujui — status pesanan disinkronkan', [
+            'pesanan_id' => $pesanan->id,
+            'nomor_pesanan' => $pesanan->nomor_pesanan,
+            'jenis_pembayaran' => $konfirmasi->jenis_pembayaran,
+            'status_pembayaran' => $pesanan->fresh()->status_pembayaran,
+            'status_booking' => $pesanan->fresh()->status_booking ?? null,
+            'invoice_status' => $invoice->fresh()->status,
+        ]);
+    }
+
+    /**
+     * Set status pesanan dari invoice setelah verifikasi (DP / cicilan / pelunasan).
+     *
+     * @return string akses_jadwal: none|partial|full
+     */
+    public function reconcilePesananWithInvoice(
+        Pesanan $pesanan,
+        Invoice $invoice,
+        ?PembayaranKonfirmasi $konfirmasi = null
+    ): string {
+        $invoice->recalculateStatus();
+        $invoiceStatus = strtolower(trim((string) $invoice->status));
+        $sisa = (float) $invoice->sisa_pembayaran;
+        $isFullyPaid = $invoiceStatus === 'lunas'
+            || $sisa <= 0.01
+            || ($konfirmasi && $konfirmasi->jenis_pembayaran === 'Pelunasan' && $sisa <= 0.01);
+
+        $paymentUpdate = [];
+
+        if ($isFullyPaid) {
+            $paymentUpdate = [
+                'status_pembayaran' => 'fully_paid',
+                'akses_jadwal' => 'full',
+                'status_pemesanan' => in_array($pesanan->status_pemesanan, ['confirmed', 'on_progress', 'completed'], true)
+                    ? $pesanan->status_pemesanan
+                    : 'pending_verification',
+                'fully_paid_by_admin_at' => $pesanan->fully_paid_by_admin_at ?? now(),
+            ];
+            $accessLevel = 'full';
+        } elseif ($invoiceStatus === 'dp lunas'
+            || (float) $invoice->dp_dibayar > 0
+            || in_array($konfirmasi?->jenis_pembayaran, ['DP', 'Cicilan', 'Pelunasan'], true)) {
+            $paymentUpdate = [
+                'status_pembayaran' => 'dp_paid',
+                'akses_jadwal' => 'partial',
+                'status_pemesanan' => in_array($pesanan->status_pemesanan, ['confirmed', 'on_progress', 'completed'], true)
+                    ? $pesanan->status_pemesanan
+                    : 'confirmed',
+                'verified_admin_id' => $pesanan->verified_admin_id ?? Auth::id(),
+                'verified_by_admin_at' => $pesanan->verified_by_admin_at ?? now(),
+            ];
+            $accessLevel = 'partial';
+        } else {
+            return $pesanan->akses_jadwal ?? 'none';
+        }
+
+        if ($pesanan->status === 'Menunggu') {
+            $paymentUpdate['status'] = 'Sedang Berlangsung';
+        }
+
+        $pesanan->update($paymentUpdate);
+        $pesanan->refresh();
+        app(BookingCancellationService::class)->syncStatusBooking($pesanan);
+
+        return $accessLevel;
+    }
+
+    /**
+     * Setelah approve: jadwalkan cicilan berikutnya & sinkronkan deadline dinamis.
+     */
+    private function syncPaymentSchedule(PembayaranKonfirmasi $konfirmasi): void
+    {
+        $invoice = $konfirmasi->invoice;
+        $pesanan = $invoice?->pesanan;
+
+        if (! $invoice || ! $pesanan) {
+            return;
+        }
+
+        PaymentScheduleService::applyToInvoice($invoice);
+        $invoice->saveQuietly();
+
+        PaymentScheduleService::ensureDpJadwal($invoice);
+
+        if ($konfirmasi->jenis_pembayaran === 'DP') {
+            if (Schema::hasColumn('pesanans', 'booking_disetujui_at') && ! $pesanan->booking_disetujui_at) {
+                $pesanan->forceFill([
+                    'booking_disetujui_at' => $pesanan->verified_by_admin_at ?? now(),
+                ])->saveQuietly();
+            }
+
+            PaymentScheduleService::syncJadwalRecords($invoice, now());
+        }
+
+        PaymentScheduleService::markJadwalPaid($konfirmasi);
+        PaymentDeadlineService::syncFor($pesanan->fresh());
     }
 
     /**
@@ -101,6 +182,7 @@ class PaymentWorkflowService
             $pesanan->update(['akses_jadwal' => $akses]);
             $pesanan->refresh();
             app(BookingCancellationService::class)->syncStatusBooking($pesanan);
+            AdminPerformanceCache::forgetBookingStats();
         }
     }
 

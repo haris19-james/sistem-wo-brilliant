@@ -38,6 +38,15 @@ class BookingCancellationController extends Controller
         ]);
 
         try {
+            // If client (not admin) is cancelling, compute refund automatically: 20% of DP
+            if (! $isAdmin) {
+                $invoice = $pesanan->invoices()->first();
+                $dpAmount = (float) ($invoice->dp_dibayar ?? 0);
+                $calculated = round($dpAmount * 0.20, 2);
+                $validated['jumlah_refund'] = $calculated;
+                $validated['refund_dp'] = true;
+            }
+
             $result = $this->cancellationService->cancel(
                 $pesanan,
                 $validated['alasan_pembatalan'],

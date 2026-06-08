@@ -115,7 +115,8 @@
                                 type="checkbox"
                                 name="vendor_ids[]"
                                 value="{{ $v->id }}"
-                                class="mt-1 rounded border-gray-300 text-bottle"
+                                data-price="{{ \App\Support\MoneyParser::toFloat($v->harga_info) }}"
+                                class="mt-1 rounded border-gray-300 text-bottle vendor-checkbox"
                                 @checked(in_array($v->id, (array) old('vendor_ids', []), true))
                             >
                             <span class="text-sm">
@@ -145,6 +146,19 @@
             'inputName' => 'estimasi_budget',
             'required' => true,
         ])
+
+        <div id="vendor-sum-panel" class="mt-4 p-4 rounded-xl border border-gray-100 bg-white">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-gray-500">Total Estimasi Biaya (vendor terpilih)</p>
+                    <p id="vendor-total-display" class="text-lg font-semibold text-gray-900">Rp 0</p>
+                </div>
+                <div class="text-sm" id="budget-status-text"></div>
+            </div>
+            <div class="w-full bg-gray-200 h-2 rounded mt-3 overflow-hidden">
+                <div id="vendor-progress" class="bg-bottle h-2 w-0 transition-all"></div>
+            </div>
+        </div>
 
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Permintaan tambahan (opsional)</label>
@@ -670,6 +684,55 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 })();
+</script>
+<script>
+// Real-time accumulation for selected vendors and budget monitoring
+function formatRp(n) {
+    return new Intl.NumberFormat('id-ID').format(Math.max(0, Math.round(n || 0)));
+}
+
+function updateVendorSum() {
+    const checkboxes = Array.from(document.querySelectorAll('input.vendor-checkbox'));
+    const total = checkboxes.filter(c => c.checked).reduce((s, c) => s + (parseFloat(c.dataset.price || 0) || 0), 0);
+    const display = document.getElementById('vendor-total-display');
+    const progress = document.getElementById('vendor-progress');
+    const statusText = document.getElementById('budget-status-text');
+    display.textContent = 'Rp ' + formatRp(total);
+
+    const budgetInput = document.querySelector('input[name="estimasi_budget"]');
+    const budget = budgetInput ? Number(budgetInput.value || 0) : 0;
+    let pct = 0;
+    if (budget > 0) {
+        pct = Math.min(100, Math.round((total / budget) * 100));
+    } else if (total > 0) {
+        pct = 100;
+    }
+    progress.style.width = pct + '%';
+    if (budget > 0 && total > budget) {
+        progress.classList.remove('bg-bottle');
+        progress.classList.add('bg-red-500');
+        statusText.textContent = 'Melebihi anggaran: Rp ' + formatRp(total - budget);
+        statusText.classList.add('text-red-600');
+    } else {
+        progress.classList.remove('bg-red-500');
+        progress.classList.add('bg-bottle');
+        if (budget > 0) {
+            statusText.textContent = 'Dalam anggaran (' + pct + '%)';
+            statusText.classList.remove('text-red-600');
+            statusText.classList.add('text-green-700');
+        } else {
+            statusText.textContent = '';
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('input.vendor-checkbox').forEach(el => el.addEventListener('change', updateVendorSum));
+    const budgetInput = document.querySelector('input[name="estimasi_budget"]');
+    if (budgetInput) budgetInput.addEventListener('input', updateVendorSum);
+    // initial
+    setTimeout(updateVendorSum, 120);
+});
 </script>
 @endpush
 @endsection

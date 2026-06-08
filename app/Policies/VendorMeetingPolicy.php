@@ -8,6 +8,14 @@ use App\Models\VendorMeeting;
 class VendorMeetingPolicy
 {
     /**
+     * Korlap dan Admin boleh membuat jadwal meeting vendor baru.
+     */
+    public function create(User $user): bool
+    {
+        return $user->isAdmin() || $user->isLapangan();
+    }
+
+    /**
      * Determine whether the user can view the model.
      * Admin bisa lihat semua, Korlap hanya lihat miliknya.
      */

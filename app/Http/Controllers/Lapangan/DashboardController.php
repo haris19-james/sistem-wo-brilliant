@@ -4,47 +4,57 @@ namespace App\Http\Controllers\Lapangan;
 
 use App\Http\Controllers\Controller;
 use App\Models\ChatMessage;
-use App\Models\JadwalMeeting;
 use App\Models\LaporanLapangan;
 use App\Models\Pesanan;
 use App\Models\Rundown;
 use App\Models\User;
 use App\Models\Vendor;
-use App\Models\VendorMeeting;
+use App\Services\LapanganVendorMeetingService;
 use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(LapanganVendorMeetingService $meetingService)
     {
         $hariIni = Carbon::today();
-        $mingguDepan = $hariIni->copy()->addDays(7);
         $currentUser = auth()->user();
 
         // Acara
-        $acaraAktif = Pesanan::aktifLapangan()
+        // Use assigned korlap_id so admin penugasan langsung tercermin di dashboard Korlap.
+        $acaraAktif = Pesanan::query()
+            ->where('korlap_id', auth()->id())
+            ->where('status', '!=', 'Dibatalkan')
+            ->whereNotIn('status_pemesanan', ['cancelled', 'canceled', 'expired', 'pending_cancellation'])
             ->with(['paket', 'progress', 'user'])
             ->orderBy('tanggal_acara')
             ->get();
 
+        // Diagnostic log to help trace sync problems for Korlap dashboards.
+        \Log::info('[Lapangan\Dashboard] acaraAktif fetched', [
+            'korlap_id' => auth()->id(),
+            'count' => $acaraAktif->count(),
+            'ids' => $acaraAktif->pluck('id')->slice(0, 20)->values()->all(),
+        ]);
+
         // Acara hari ini: booking Confirmed milik Korlap, tanggal = hari ini
+        // Today's events for this Korlap: use visibleToKorlap then narrow by date
         $acaraHariIni = Pesanan::query()
             ->where('korlap_id', auth()->id())
+            ->where('status', '!=', 'Dibatalkan')
+            ->whereNotIn('status_pemesanan', ['cancelled', 'canceled', 'expired', 'pending_cancellation'])
             ->whereDate('tanggal_acara', $hariIni)
-            ->whereIn('status_pemesanan', ['confirmed', 'on_progress'])
-            ->whereNotIn('status', ['Dibatalkan'])
             ->with(['paket', 'progress', 'user', 'rundowns'])
             ->orderBy('jam_acara')
             ->get();
 
-        // Jadwal & Meeting
-        $meetingMingguIni = JadwalMeeting::with('pesanan')
-            ->whereBetween('tanggal_meeting', [$hariIni, $mingguDepan])
-            ->where('status', '!=', 'Selesai')
-            ->orderBy('tanggal_meeting')
-            ->orderBy('waktu_meeting')
-            ->take(8)
-            ->get();
+        \Log::debug('[Lapangan\Dashboard] acaraHariIni fetched', [
+            'korlap_id' => auth()->id(),
+            'date' => $hariIni->toDateString(),
+            'count' => $acaraHariIni->count(),
+        ]);
+
+        // Vendor meetings — terikat booking_id Korlap (sinkron dengan modul Jadwal Meeting)
+        $vendorMeetingDashboard = $meetingService->dashboardForKorlap(auth()->id(), 8);
 
         // Timeline Jadwal Acara Hari Ini (Rundown)
         // Jika ada acara hari ini untuk Korlap, ambil rundowns untuk booking tersebut
@@ -68,13 +78,6 @@ class DashboardController extends Controller
         $laporanTerbaru = LaporanLapangan::with(['pesanan', 'user'])
             ->latest()
             ->take(5)
-            ->get();
-
-        // Agenda meeting untuk Korlap (menu Jadwal Acara)
-        $vendorMeetingsKorlap = VendorMeeting::where('korlap_id', auth()->id())
-            ->where('meeting_date', '>=', Carbon::today())
-            ->orderBy('meeting_date', 'asc')
-            ->orderBy('meeting_time', 'asc')
             ->get();
 
         $laporanBulanCount = LaporanLapangan::whereMonth('tanggal', now()->month)
@@ -109,13 +112,14 @@ class DashboardController extends Controller
             'vendor_aktif' => $vendorCount,
             'tugas_pending' => 4, // Placeholder - bisa dari table lain jika ada
             'pesan_belum_dibaca' => $chatTerbaru->count(),
+            'meeting_mendatang' => $vendorMeetingDashboard['total_upcoming'],
             'berlangsung' => Pesanan::where('status', 'Sedang Berlangsung')->count(),
             'laporan_bulan' => $laporanBulanCount,
             'laporan_persen' => $laporanPersen,
             'progress_persiapan' => $progressPersiapan,
         ];
 
-        return view('lapangan.modules.dashboard', [
+        $data = [
             'activeMenu' => 'dashboard',
             'stats' => $stats,
             'currentUser' => $currentUser,
@@ -124,11 +128,138 @@ class DashboardController extends Controller
             'acaraHariIni' => $acaraHariIni,
             'jadwalHariIni' => $jadwalHariIni,
             'vendorHariIni' => $vendorHariIni,
-            'meetingMingguIni' => $meetingMingguIni,
-            'vendorMeetingsKorlap' => $vendorMeetingsKorlap,
+            'vendorMeetingsUpcoming' => $vendorMeetingDashboard['upcoming'],
+            'bookingsWithMeetings' => $vendorMeetingDashboard['bookings_with_meetings'],
             'laporanTerbaru' => $laporanTerbaru,
             'chatTerbaru' => $chatTerbaru,
+        ];
+
+        return view('lapangan.modules.dashboard', $data);
+    }
+
+    public function refresh(LapanganVendorMeetingService $meetingService)
+    {
+        $data = $this->loadDashboardData($meetingService);
+
+        return response()->json([
+            'success' => true,
+            'html' => view('lapangan.modules.dashboard_live_status', [
+                'hariIni' => $data['hariIni'],
+                'acaraHariIni' => $data['acaraHariIni'],
+                'jadwalHariIni' => $data['jadwalHariIni'],
+                'stats' => $data['stats'],
+            ])->render(),
+            'stats' => $data['stats'],
         ]);
+    }
+
+    protected function loadDashboardData(LapanganVendorMeetingService $meetingService): array
+    {
+        $hariIni = Carbon::today();
+        $currentUser = auth()->user();
+
+        // Acara
+        $acaraAktif = Pesanan::query()
+            ->visibleToKorlap(auth()->id())
+            ->with(['paket', 'progress', 'user'])
+            ->orderBy('tanggal_acara')
+            ->get();
+
+        // Diagnostic log to help trace sync problems for Korlap dashboards.
+        \Log::info('[Lapangan\\Dashboard] acaraAktif fetched', [
+            'korlap_id' => auth()->id(),
+            'count' => $acaraAktif->count(),
+            'ids' => $acaraAktif->pluck('id')->slice(0, 20)->values()->all(),
+        ]);
+
+        // Acara hari ini: booking Confirmed milik Korlap, tanggal = hari ini
+        $acaraHariIni = Pesanan::query()
+            ->visibleToKorlap(auth()->id())
+            ->whereDate('tanggal_acara', $hariIni)
+            ->whereNotIn('status', ['Dibatalkan'])
+            ->with(['paket', 'progress', 'user', 'rundowns'])
+            ->orderBy('jam_acara')
+            ->get();
+
+        \Log::debug('[Lapangan\\Dashboard] acaraHariIni fetched', [
+            'korlap_id' => auth()->id(),
+            'date' => $hariIni->toDateString(),
+            'count' => $acaraHariIni->count(),
+        ]);
+
+        $bookingIdsHariIni = $acaraHariIni->pluck('id')->toArray();
+        $jadwalHariIni = collect();
+        if (!empty($bookingIdsHariIni)) {
+            $jadwalHariIni = Rundown::with('pesanan')
+                ->whereIn('pesanan_id', $bookingIdsHariIni)
+                ->orderBy('waktu_mulai', 'asc')
+                ->get();
+        }
+
+        $vendorMeetingDashboard = $meetingService->dashboardForKorlap(auth()->id(), 8);
+
+        $vendorHariIni = Vendor::aktif()
+            ->limit(4)
+            ->get();
+
+        $vendorCount = Vendor::aktif()->count();
+
+        $laporanTerbaru = LaporanLapangan::with(['pesanan', 'user'])
+            ->latest()
+            ->take(5)
+            ->get();
+
+        $laporanBulanCount = LaporanLapangan::whereMonth('tanggal', now()->month)
+            ->whereYear('tanggal', now()->year)
+            ->distinct('pesanan_id')
+            ->count('pesanan_id');
+
+        $pesananBulanCount = Pesanan::whereMonth('tanggal_acara', now()->month)
+            ->whereYear('tanggal_acara', now()->year)
+            ->whereNotIn('status', ['Dibatalkan'])
+            ->count();
+
+        $laporanPersen = 0;
+        if ($pesananBulanCount > 0) {
+            $laporanPersen = (int) round(($laporanBulanCount / $pesananBulanCount) * 100);
+            $laporanPersen = min(100, max(0, $laporanPersen));
+        }
+
+        $progressPersiapan = 0;
+        if ($acaraAktif->isNotEmpty()) {
+            $progressPersiapan = (int) round($acaraAktif->map(function ($item) {
+                return $item->progress?->persentase ?? 0;
+            })->avg());
+        }
+
+        $chatTerbaru = $this->getLatestConversations();
+
+        $stats = [
+            'hari_ini' => $acaraHariIni->count(),
+            'vendor_aktif' => $vendorCount,
+            'tugas_pending' => 4,
+            'pesan_belum_dibaca' => $chatTerbaru->count(),
+            'meeting_mendatang' => $vendorMeetingDashboard['total_upcoming'],
+            'berlangsung' => Pesanan::where('status', 'Sedang Berlangsung')->count(),
+            'laporan_bulan' => $laporanBulanCount,
+            'laporan_persen' => $laporanPersen,
+            'progress_persiapan' => $progressPersiapan,
+        ];
+
+        return [
+            'activeMenu' => 'dashboard',
+            'stats' => $stats,
+            'currentUser' => $currentUser,
+            'hariIni' => $hariIni,
+            'acaraAktif' => $acaraAktif,
+            'acaraHariIni' => $acaraHariIni,
+            'jadwalHariIni' => $jadwalHariIni,
+            'vendorHariIni' => $vendorHariIni,
+            'vendorMeetingsUpcoming' => $vendorMeetingDashboard['upcoming'],
+            'bookingsWithMeetings' => $vendorMeetingDashboard['bookings_with_meetings'],
+            'laporanTerbaru' => $laporanTerbaru,
+            'chatTerbaru' => $chatTerbaru,
+        ];
     }
 
     /**

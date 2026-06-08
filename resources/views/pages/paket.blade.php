@@ -74,8 +74,6 @@
                     <a href="{{ route('register') }}" class="block text-center bg-bottle text-white font-semibold py-3 rounded-xl hover:bg-bottleHover">Daftar untuk Booking</a>
                     <a href="{{ route('login') }}" class="block text-center text-sm text-bottle font-semibold hover:underline">Sudah punya akun? Masuk</a>
                     @endauth
-                    <a href="{{ \App\Support\Branding::whatsappUrl('Halo, saya tertarik paket '.$paket->nama_paket) }}" target="_blank" rel="noopener"
-                       class="block text-center border border-bottle text-bottle font-semibold py-2.5 rounded-xl hover:bg-leafSoft text-sm">Tanya via WhatsApp</a>
                 </div>
             </div>
         </article>

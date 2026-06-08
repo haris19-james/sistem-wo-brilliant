@@ -66,7 +66,7 @@ class Invoice extends Model
             return (float) min((float) $this->total_biaya, $paketDp);
         }
 
-        return round((float) $this->total_biaya * (config('pembayaran.dp_persen', 30) / 100), 2);
+        return round((float) $this->total_biaya * (config('pembayaran.dp_persen', 20) / 100), 2);
     }
 
     public function getStatusBadgeClassAttribute(): string
@@ -93,34 +93,14 @@ class Invoice extends Model
         }
     }
 
+    public function pembayaranJadwals()
+    {
+        return $this->hasMany(\App\Models\PembayaranJadwal::class);
+    }
+
     public function applyPaymentSchedule(): void
     {
-        $this->loadMissing('pesanan');
-
-        $invoiceDate = $this->tanggal_invoice
-            ? Carbon::parse($this->tanggal_invoice)
-            : now();
-
-        $tanggalAcara = $this->pesanan?->tanggal_acara
-            ? Carbon::parse($this->pesanan->tanggal_acara)
-            : $invoiceDate->copy()->addMonths(3);
-
-        $this->jatuh_tempo_dp = $invoiceDate->copy()
-            ->addDays((int) config('pembayaran.dp_hari_setelah_invoice', 7));
-
-        $pelunasan = $tanggalAcara->copy()
-            ->subDays((int) config('pembayaran.pelunasan_hari_sebelum_acara', 30));
-
-        if ($pelunasan->lte($this->jatuh_tempo_dp)) {
-            $pelunasan = $this->jatuh_tempo_dp->copy()->addDays(60);
-        }
-
-        $this->jatuh_tempo_pelunasan = $pelunasan;
-        $this->jatuh_tempo = $pelunasan;
-
-        if ($this->pesanan) {
-            \App\Services\PaymentDeadlineService::syncFor($this->pesanan);
-        }
+        \App\Services\PaymentScheduleService::applyToInvoice($this);
     }
 
     /**
@@ -128,43 +108,34 @@ class Invoice extends Model
      */
     public function getJadwalCicilanAttribute(): array
     {
-        if (! $this->jatuh_tempo_dp || ! $this->jatuh_tempo_pelunasan) {
-            return [];
-        }
+        if (\Illuminate\Support\Facades\Schema::hasTable('pembayaran_jadwals')) {
+            $this->loadMissing('pembayaranJadwals');
+            $fromDb = $this->pembayaranJadwals
+                ->where('jenis', 'Cicilan')
+                ->sortBy('urutan')
+                ->map(fn ($row) => [
+                    'urutan' => $row->urutan,
+                    'label' => 'Cicilan ke-'.($row->urutan ?? 1),
+                    'jatuh_tempo' => Carbon::parse($row->tanggal_jatuh_tempo),
+                    'nominal_saran' => (float) $row->nominal_saran,
+                    'status' => $row->status,
+                ])
+                ->values()
+                ->all();
 
-        $count = max(1, (int) config('pembayaran.jumlah_cicilan', 3));
-        $dpDate = Carbon::parse($this->jatuh_tempo_dp);
-        $pelunasanDate = Carbon::parse($this->jatuh_tempo_pelunasan);
-
-        $sisaSetelahDp = max(0, (float) $this->total_biaya - (float) $this->dp_minimum);
-        $perCicilan = $count > 0 ? round($sisaSetelahDp / $count, 2) : 0;
-
-        $totalDays = max(1, $dpDate->diffInDays($pelunasanDate));
-        $interval = (int) max(1, floor($totalDays / ($count + 1)));
-
-        $jadwal = [];
-        for ($i = 1; $i <= $count; $i++) {
-            $due = $dpDate->copy()->addDays($interval * $i);
-            if ($due->gt($pelunasanDate)) {
-                $due = $pelunasanDate->copy();
+            if ($fromDb !== []) {
+                return $fromDb;
             }
-
-            $jadwal[] = [
-                'urutan' => $i,
-                'label' => 'Cicilan ke-'.$i,
-                'jatuh_tempo' => $due,
-                'nominal_saran' => $perCicilan,
-            ];
         }
 
-        return $jadwal;
+        return \App\Services\PaymentScheduleService::buildCicilanSchedule($this);
     }
 
     public function getJadwalPembayaranRingkasAttribute(): array
     {
         return [
             'dp' => [
-                'label' => 'DP / Uang Muka ('.config('pembayaran.dp_persen', 30).'%)',
+                'label' => 'DP / Uang Muka ('.config('pembayaran.dp_persen', 20).'%)',
                 'jatuh_tempo' => $this->jatuh_tempo_dp,
                 'nominal' => $this->dp_minimum,
             ],

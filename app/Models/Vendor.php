@@ -31,6 +31,11 @@ class Vendor extends Model
 
     protected $appends = ['image_url'];
 
+    protected $casts = [
+        'harga_info' => 'string',
+    ];
+
+
     protected function casts(): array
     {
         return [
@@ -43,6 +48,11 @@ class Vendor extends Model
     protected function imageUrl(): Attribute
     {
         return Attribute::get(fn () => ImageHelper::url($this->gambar, $this->gambar_url));
+    }
+
+    protected function price(): Attribute
+    {
+        return Attribute::get(fn () => \App\Support\MoneyParser::toFloat($this->harga_info));
     }
 
     public function scopeAktif($query)

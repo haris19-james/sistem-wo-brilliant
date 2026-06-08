@@ -4,12 +4,25 @@ namespace App\Services;
 
 use App\Models\Pesanan;
 use App\Models\Tugas;
+use App\Services\NotificationCenterService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
 
+/**
+ * BookingCancellationService
+ *
+ * Menangani alur pembatalan dengan mekanisme approval-based.
+ */
+
 class BookingCancellationService
 {
+    protected NotificationCenterService $notificationService;
+
+    public function __construct(NotificationCenterService $notificationService)
+    {
+        $this->notificationService = $notificationService;
+    }
     /**
      * Sinkronkan status_booking dari status pembayaran / pemesanan saat ini.
      */
@@ -71,13 +84,24 @@ class BookingCancellationService
         $bookingStatus = $pesanan->status_booking ?: $this->inferStatusBooking($pesanan);
 
         return DB::transaction(function () use ($pesanan, $alasan, $bookingStatus, $byAdmin, $options) {
-            if ($bookingStatus === 'approved_lunas' && ! $byAdmin) {
+            if (! $byAdmin) {
+                // All client-initiated cancellations should become pending for admin review
+                $refundAmount = isset($options['jumlah_refund']) ? max(0, (float) $options['jumlah_refund']) : 0;
+
                 $pesanan->update([
                     'status_pemesanan' => 'pending_cancellation',
                     'alasan_pembatalan' => $alasan,
                     'pembatalan_diminta_at' => now(),
-                    'jumlah_refund' => 0,
+                    'jumlah_refund' => $refundAmount,
                 ]);
+
+                // Notify admins about pending cancellation
+                try {
+                    $msg = "Permintaan pembatalan: {$pesanan->nama_pasangan} ({$pesanan->nomor_pesanan}) — Est. refund Rp " . number_format($refundAmount, 0, ',', '.');
+                    $this->notificationService->notifyAdmins($msg, route('admin.booking.show', $pesanan->id), 'urgent', 'cancellation');
+                } catch (\Exception $e) {
+                    // swallow notification errors but log if needed
+                }
 
                 return $pesanan->fresh();
             }

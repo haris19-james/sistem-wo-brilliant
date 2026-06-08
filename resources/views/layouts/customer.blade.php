@@ -45,7 +45,7 @@
                 panel="client"
                 :active-menu="$active"
                 :rundown-url="route('client.jadwal')"
-                :meeting-url="route('client.jadwal').'#vendor-meetings'"
+                :meeting-url="route('client.jadwal', ['section' => 'meetings']).'#vendor-meetings'"
                 :rundown-locked="$jadwalNavRundownLocked ?? true"
                 :meeting-locked="$jadwalNavMeetingLocked ?? true"
                 :lock-hint="$jadwalNavLockHint ?? null"

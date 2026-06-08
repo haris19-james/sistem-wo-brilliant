@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Customer;
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\PembayaranKonfirmasi;
+use App\Services\PaymentScheduleService;
 use App\Support\ImageHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -28,12 +29,11 @@ class PembayaranController extends Controller
                 ->with('error', 'Anda masih memiliki konfirmasi pembayaran yang menunggu persetujuan admin.');
         }
 
-        if (! $invoice->jatuh_tempo_dp) {
-            $invoice->applyPaymentSchedule();
-            $invoice->save();
-        }
+        $invoice->applyPaymentSchedule();
+        $invoice->save();
+        PaymentScheduleService::ensureDpJadwal($invoice);
 
-        $invoice->load(['pesanan.paket']);
+        $invoice->load(['pesanan.paket', 'pembayaranJadwals']);
 
         return view('customer.modules.pembayaran.create', [
             'activeMenu' => 'pembayaran',
@@ -58,11 +58,13 @@ class PembayaranController extends Controller
             return back()->with('error', 'Konfirmasi sebelumnya masih menunggu admin.');
         }
 
+        $invoice->applyPaymentSchedule();
+        $invoice->save();
+
         $sisa = (float) $invoice->sisa_pembayaran;
         $maxKb = (int) config('pembayaran.bukti_max_kb', 10240);
 
         if (! $request->hasFile('bukti_transfer')) {
-            $postMax = ini_get('post_max_size');
             $uploadMax = ini_get('upload_max_filesize');
 
             throw ValidationException::withMessages([
@@ -96,13 +98,24 @@ class PembayaranController extends Controller
         ]);
 
         if ($validated['jenis_pembayaran'] === 'DP' && (float) $invoice->dp_dibayar === 0) {
-            $dpMin = $invoice->dp_minimum;
-            if ((float) $validated['jumlah'] < $dpMin) {
+            $dpError = PaymentScheduleService::validateDpAmount($invoice, (float) $validated['jumlah']);
+            if ($dpError) {
                 return back()
                     ->withInput()
-                    ->withErrors(['jumlah' => 'DP minimal Rp '.number_format($dpMin, 0, ',', '.').' ('.config('pembayaran.dp_persen', 30).'%).']);
+                    ->withErrors(['jumlah' => $dpError]);
             }
         }
+
+        $urutanCicilan = null;
+        if ($validated['jenis_pembayaran'] === 'Cicilan') {
+            $urutanCicilan = PaymentScheduleService::resolveNextCicilanUrutan($invoice);
+        }
+
+        $dueDate = PaymentScheduleService::dueDateForKonfirmasi(
+            $invoice,
+            $validated['jenis_pembayaran'],
+            $urutanCicilan
+        );
 
         try {
             $bukti = ImageHelper::storeBuktiTransfer($file);
@@ -116,10 +129,12 @@ class PembayaranController extends Controller
             'invoice_id' => $invoice->id,
             'user_id' => Auth::id(),
             'jenis_pembayaran' => $validated['jenis_pembayaran'],
+            'urutan_cicilan' => $urutanCicilan,
             'jumlah' => $validated['jumlah'],
             'bank_pengirim' => $validated['bank_pengirim'],
             'nama_pengirim' => $validated['nama_pengirim'],
             'tanggal_transfer' => $validated['tanggal_transfer'],
+            'tanggal_jatuh_tempo' => $dueDate,
             'bukti_transfer' => $bukti,
             'catatan' => $validated['catatan'] ?? null,
             'status' => 'Menunggu Konfirmasi',

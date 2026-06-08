@@ -2,35 +2,74 @@
 
 namespace App\Services;
 
+use App\Models\Invoice;
 use App\Models\Pesanan;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Schema;
 
 class PaymentDeadlineService
 {
-    public static function daysBeforeEvent(): int
-    {
-        return (int) config('pembayaran.pelunasan_hari_sebelum_acara', 14);
-    }
-
     public static function warningDays(): int
     {
         return (int) config('pembayaran.deadline_warning_hari', 7);
     }
 
-    public static function computeDeadlineDate(Pesanan $pesanan): ?Carbon
+    /**
+     * Jatuh tempo aktif berikutnya (DP, cicilan, atau pelunasan) — bukan tanggal fixed.
+     */
+    public static function computeDeadlineDate(Pesanan $pesanan, ?Invoice $invoice = null): ?Carbon
     {
-        if (! $pesanan->tanggal_acara) {
+        if ($pesanan->isPembayaranLunas() || $pesanan->status_pembayaran === 'fully_paid') {
             return null;
         }
 
-        return Carbon::parse($pesanan->tanggal_acara)
-            ->startOfDay()
-            ->subDays(self::daysBeforeEvent());
+        $invoice ??= $pesanan->relationLoaded('invoices')
+            ? $pesanan->invoices->sortByDesc('id')->first()
+            : $pesanan->invoices()->latest()->first();
+
+        if ($invoice) {
+            return PaymentScheduleService::nextDueDate($invoice, $pesanan);
+        }
+
+        if ($pesanan->status_pembayaran === 'unpaid' || ! $pesanan->status_pembayaran) {
+            return PaymentScheduleService::computeDpDueDate($pesanan);
+        }
+
+        return PaymentScheduleService::computePelunasanDueDate($pesanan);
     }
 
     /**
-     * Hitung & simpan tanggal_jatuh_tempo + status_deadline.
+     * Label jenis termin yang sedang aktif (untuk banner).
+     */
+    public static function activeTermLabel(Pesanan $pesanan, ?Invoice $invoice = null): string
+    {
+        $invoice ??= $pesanan->invoices()->latest()->first();
+
+        if (! $invoice || (float) $invoice->dp_dibayar === 0) {
+            return 'DP / Uang Muka';
+        }
+
+        if (Schema::hasTable('pembayaran_jadwals')) {
+            $next = \App\Models\PembayaranJadwal::query()
+                ->where('invoice_id', $invoice->id)
+                ->where('status', 'scheduled')
+                ->orderBy('tanggal_jatuh_tempo')
+                ->first();
+
+            if ($next) {
+                return match ($next->jenis) {
+                    'Pelunasan' => 'Pelunasan',
+                    'Cicilan' => 'Cicilan ke-'.($next->urutan ?? 1),
+                    default => $next->jenis,
+                };
+            }
+        }
+
+        return 'Pelunasan';
+    }
+
+    /**
+     * Hitung & simpan tanggal_jatuh_tempo + status_deadline pada pesanan.
      */
     public static function syncFor(Pesanan $pesanan, bool $persist = true): Pesanan
     {
@@ -54,10 +93,6 @@ class PaymentDeadlineService
     public static function resolveStatusDeadline(Pesanan $pesanan, ?Carbon $deadline = null): string
     {
         if ($pesanan->isPembayaranLunas() || $pesanan->status_pembayaran === 'fully_paid') {
-            return 'safe';
-        }
-
-        if (! in_array($pesanan->status_pembayaran, ['dp_paid'], true)) {
             return 'safe';
         }
 
@@ -95,13 +130,27 @@ class PaymentDeadlineService
         return (int) now()->startOfDay()->diffInDays($deadline, false);
     }
 
+    /**
+     * Bekukan Korlap hanya jika melewati batas pelunasan akhir (bukan cicilan perantara).
+     */
     public static function isKorlapFrozen(Pesanan $pesanan): bool
     {
         self::syncFor($pesanan);
 
-        return ($pesanan->status_deadline ?? 'safe') === 'overdue'
-            && ! $pesanan->isPembayaranLunas()
-            && $pesanan->status_pembayaran !== 'fully_paid';
+        if ($pesanan->isPembayaranLunas() || $pesanan->status_pembayaran === 'fully_paid') {
+            return false;
+        }
+
+        if ($pesanan->status_pembayaran !== 'dp_paid') {
+            return false;
+        }
+
+        $pelunasanDue = PaymentScheduleService::computePelunasanDueDate($pesanan);
+        if (! $pelunasanDue) {
+            return ($pesanan->status_deadline ?? 'safe') === 'overdue';
+        }
+
+        return now()->startOfDay()->gt($pelunasanDue->startOfDay());
     }
 
     public static function syncAllActive(): int
@@ -137,36 +186,31 @@ class PaymentDeadlineService
             return null;
         }
 
-        if ($pesanan->status_pembayaran !== 'dp_paid') {
-            return null;
-        }
-
-        $deadline = $pesanan->tanggal_jatuh_tempo
-            ? Carbon::parse($pesanan->tanggal_jatuh_tempo)
-            : self::computeDeadlineDate($pesanan);
-
+        $deadline = self::computeDeadlineDate($pesanan);
         if (! $deadline) {
             return null;
         }
 
         $deadlineLabel = $deadline->translatedFormat('d F Y');
         $daysLeft = self::daysUntilDeadline($pesanan);
+        $termLabel = self::activeTermLabel($pesanan);
+        $status = $pesanan->status_deadline ?? self::resolveStatusDeadline($pesanan, $deadline);
 
-        if (($pesanan->status_deadline ?? 'safe') === 'overdue') {
+        if ($status === 'overdue') {
             return [
                 'type' => 'overdue',
                 'icon' => '🚨',
-                'message' => 'PERINGATAN: Pembayaran Anda telah melewati tenggat waktu pada '.$deadlineLabel
-                    .'. Akses koordinasi penuh tim lapangan ditangguhkan sementara sampai pelunasan diselesaikan.',
+                'message' => 'PERINGATAN: Batas waktu '.$termLabel.' Anda telah lewat pada '.$deadlineLabel
+                    .'. Mohon segera lunasi sisa tagihan agar koordinasi tim lapangan tidak terganggu.',
             ];
         }
 
-        if (($pesanan->status_deadline ?? 'safe') === 'warning' && $daysLeft !== null) {
+        if ($status === 'warning' && $daysLeft !== null) {
             return [
                 'type' => 'deadline_warning',
                 'icon' => '⚠️',
-                'message' => 'Pengingat: Batas akhir pelunasan tagihan Anda adalah '.$deadlineLabel
-                    .' ('.$daysLeft.' hari lagi). Mohon segera lunasi agar koordinasi tim lapangan berjalan lancar.',
+                'message' => 'Pengingat: Batas '.$termLabel.' berikutnya adalah '.$deadlineLabel
+                    .' ('.$daysLeft.' hari lagi). Mohon selesaikan pembayaran sesuai jadwal cicilan Anda.',
             ];
         }
 

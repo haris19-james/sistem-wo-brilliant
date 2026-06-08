@@ -41,7 +41,7 @@ class RefundService
      * 
      * @throws \Exception
      */
-    public function processRefund(int $pesananId, int $penaltyPercent = 0, ?string $alasanRefund = null): array
+    public function processRefund(int $pesananId, int $penaltyPercent = 0, ?string $alasanRefund = null, ?string $buktiTransferUrl = null): array
     {
         try {
             // Validasi input
@@ -78,17 +78,18 @@ class RefundService
                 // Update pesanan status menjadi refunded
                 $pesanan->update([
                     'status_pembayaran' => 'refunded',
-                    'status_booking' => 'cancelled',
-                    'status_pemesanan' => 'canceled',
+                    'status_booking' => 'refunded',
+                    'status_pemesanan' => 'completed',
                     'jumlah_refund' => $finalRefund,
                     'alasan_pembatalan' => $alasanRefund ?? 'Refund DP',
                     'dibatalkan_at' => now(),
+                    'waktu_transfer' => now(),
+                    'bukti_transfer_url' => $buktiTransferUrl,
                 ]);
 
                 // Update invoice status
                 $invoice->update([
                     'status' => 'Refund',
-                    'dp_dibayar' => 0, // Reset DP yang dibayar
                     'sisa_pembayaran' => 0, // Tidak ada sisa pembayaran
                 ]);
 

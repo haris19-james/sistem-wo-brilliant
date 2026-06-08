@@ -27,9 +27,15 @@
         const pesananId = this.dataset.pesananId;
         const input = document.getElementById('chatMessageInput');
         const pesan = input?.value?.trim();
-        if (!pesan || !pesananId) return;
-
+        const payload = { pesan };
         const btn = this.querySelector('button[type="submit"]');
+        console.log('[BookingChat] sending payload', payload, 'pesananId', pesananId);
+
+        if (!pesan || !pesananId) {
+            if (btn) btn.disabled = false;
+            return alert('Pesan tidak boleh kosong. Silakan isi pesan terlebih dahulu.');
+        }
+
         if (btn) btn.disabled = true;
 
         try {
@@ -41,15 +47,23 @@
                     'X-CSRF-TOKEN': csrf,
                     'X-Requested-With': 'XMLHttpRequest',
                 },
-                body: JSON.stringify({ pesan }),
+                body: JSON.stringify(payload),
             });
-            const data = await resp.json();
-            if (!resp.ok) throw new Error(data.message || 'Gagal mengirim');
+            const data = await resp.json().catch(() => ({}));
+            console.log('[BookingChat] response', resp.status, data);
+
+            if (!resp.ok || !data.success) {
+                throw new Error(data.message || 'Gagal mengirim pesan, silakan coba lagi.');
+            }
 
             appendMessage(data.data.text, data.data.time, 'sent');
             input.value = '';
+            input.focus();
         } catch (err) {
-            alert(err.message || 'Gagal mengirim pesan');
+            const message = err.message && !/pesan/i.test(err.message)
+                ? err.message
+                : 'Gagal mengirim pesan, silakan coba lagi.';
+            alert(message);
         } finally {
             if (btn) btn.disabled = false;
         }

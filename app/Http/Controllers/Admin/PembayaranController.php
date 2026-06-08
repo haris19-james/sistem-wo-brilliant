@@ -14,7 +14,9 @@ use App\Models\PembayaranKonfirmasi;
 
 use App\Services\ItemTambahanService;
 use App\Services\NotificationCenterService;
+use App\Services\PaymentScheduleService;
 use App\Services\PaymentWorkflowService;
+use App\Support\AdminPerformanceCache;
 
 use Illuminate\Http\Request;
 
@@ -228,7 +230,12 @@ class PembayaranController extends Controller
 
         $dibayarBaru = (float) $invoice->dp_dibayar + (float) $konfirmasi->jumlah;
 
-
+        if ($konfirmasi->jenis_pembayaran === 'DP' && (float) $invoice->dp_dibayar === 0) {
+            $dpError = PaymentScheduleService::validateDpAmount($invoice, (float) $konfirmasi->jumlah);
+            if ($dpError) {
+                return back()->with('error', $dpError);
+            }
+        }
 
         if ($dibayarBaru > (float) $invoice->total_biaya + 0.01) {
 
@@ -262,6 +269,13 @@ class PembayaranController extends Controller
 
 
 
+            $dueDate = $konfirmasi->tanggal_jatuh_tempo
+                ?? PaymentScheduleService::dueDateForKonfirmasi(
+                    $invoice,
+                    $konfirmasi->jenis_pembayaran,
+                    $konfirmasi->urutan_cicilan
+                );
+
             $konfirmasi->update([
 
                 'status' => 'Disetujui',
@@ -273,6 +287,8 @@ class PembayaranController extends Controller
                 'confirmed_at' => now(),
 
                     'alasan_penolakan' => null,
+
+                'tanggal_jatuh_tempo' => $dueDate,
 
                 ]);
 
@@ -303,13 +319,19 @@ class PembayaranController extends Controller
             app(NotificationCenterService::class)->paymentApprovedForCustomer($pesanan, $lunas);
         }
 
+        AdminPerformanceCache::forgetBookingStats();
+
         $message = $lunas
 
-            ? 'Pelunasan disetujui. Akses jadwal Tim Lapangan: Full Access.'
+            ? 'Pelunasan disetujui. Booking lunas penuh dan muncul di daftar booking aktif admin.'
 
-            : 'DP disetujui. Akses jadwal Tim Lapangan: Partial Access.';
+            : 'DP disetujui. Booking aktif (DP terverifikasi) — akses jadwal Tim Lapangan: Partial Access.';
 
-
+        if (request()->boolean('redirect_dashboard')) {
+            return redirect()
+                ->route('admin.dashboard')
+                ->with('success', $message);
+        }
 
         return back()->with('success', $message);
 

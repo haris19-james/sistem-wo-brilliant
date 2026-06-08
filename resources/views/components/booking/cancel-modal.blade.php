@@ -40,11 +40,18 @@
             @csrf
             @method('PATCH')
 
+            @php
+                $invoice = $pesanan->invoices()->first();
+                $dpAmount = (float) ($invoice->dp_dibayar ?? 0);
+                $computedRefund = round($dpAmount * 0.20, 2);
+            @endphp
+
             <div class="p-4 rounded-xl border-2 border-amber-200 bg-amber-50 text-sm text-amber-950 leading-relaxed">
                 <p class="font-bold text-amber-900 mb-1">⚠ Perhatian</p>
                 <p>{{ $warning }}</p>
                 @if($immediate)
-                <p class="mt-2 text-xs text-amber-800">Status booking: <strong>{{ $pesanan->status_booking_label ?? 'DP' }}</strong> · Refund: <strong>Rp 0</strong></p>
+                <p class="mt-2 text-xs text-amber-800">Status booking: <strong>{{ $pesanan->status_booking_label ?? 'DP' }}</strong> · Refund: <strong>Rp {{ number_format($computedRefund, 0, ',', '.') }}</strong></p>
+                <p class="mt-1 text-xs text-gray-600">Kebijakan refund Anda adalah 20% dari DP yang masuk. Estimasi dana yang dikembalikan: <strong>Rp {{ number_format($computedRefund, 0, ',', '.') }}</strong>. Dana akan dikembalikan ke rekening Anda dalam waktu 3x24 jam kerja setelah proses pembatalan diverifikasi oleh Admin.</p>
                 @endif
             </div>
 
@@ -69,9 +76,15 @@
             </div>
             @endif
 
+            {{-- Hidden fields for client cancellation: auto compute refund 20% of DP --}}
+            @if($panel !== 'admin')
+                <input type="hidden" name="jumlah_refund" value="{{ $computedRefund }}">
+                <input type="hidden" name="refund_dp" value="1">
+            @endif
+
             <label class="flex items-start gap-2 text-xs text-gray-600">
                 <input type="checkbox" name="konfirmasi" value="1" required class="mt-0.5 rounded border-gray-300 text-red-600 focus:ring-red-400">
-                <span>Saya memahami konsekuensi pembatalan dan menyetujui syarat &amp; ketentuan Brilliant WO.</span>
+                <span>Saya memahami konsekuensi pembatalan dan menyetujui syarat &amp; ketentuan Brilliant WO. Saya menyetujui estimasi refund sebesar Rp {{ number_format($computedRefund, 0, ',', '.') }} (20% dari DP) dan menerima bahwa dana akan dikembalikan dalam 3x24 jam kerja setelah verifikasi Admin.</span>
             </label>
 
             <p id="cancel-booking-error-{{ $pesanan->id }}" class="hidden text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2"></p>

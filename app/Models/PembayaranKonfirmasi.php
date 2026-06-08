@@ -27,10 +27,12 @@ class PembayaranKonfirmasi extends Model
         'invoice_id',
         'user_id',
         'jenis_pembayaran',
+        'urutan_cicilan',
         'jumlah',
         'bank_pengirim',
         'nama_pengirim',
         'tanggal_transfer',
+        'tanggal_jatuh_tempo',
         'bukti_transfer',
         'catatan',
         'status',
@@ -46,6 +48,8 @@ class PembayaranKonfirmasi extends Model
         return [
             'jumlah' => 'decimal:2',
             'tanggal_transfer' => 'date',
+            'tanggal_jatuh_tempo' => 'date',
+            'urutan_cicilan' => 'integer',
             'confirmed_at' => 'datetime',
         ];
     }

@@ -48,10 +48,25 @@ class ChatController extends Controller
     {
         $this->authorizePesanan($pesanan);
 
-        $validated = $request->validate([
+        $validator = validator($request->all(), [
             'pesan' => ['required', 'string', 'max:2000'],
         ]);
 
+        if ($validator->fails()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Gagal mengirim pesan, silakan coba lagi.',
+                ], 422);
+            }
+
+            return redirect()
+                ->back()
+                ->withErrors($validator)
+                ->withInput();
+        }
+
+        $validated = $validator->validated();
         $customer = Auth::user();
         $staffReceiver = $pesanan->korlap_id;
 

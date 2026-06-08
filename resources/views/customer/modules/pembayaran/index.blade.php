@@ -78,6 +78,9 @@
                 {{ $k->status_verifikasi_label ?? $k->status }}
             </span>
             <span>{{ $k->jenis_pembayaran }} — Rp {{ number_format($k->jumlah, 0, ',', '.') }}</span>
+            @if($k->tanggal_jatuh_tempo)
+            <span class="text-xs text-gray-500">Jatuh tempo: {{ $k->tanggal_jatuh_tempo->format('d M Y') }}</span>
+            @endif
             <span class="text-gray-400 text-xs">{{ $k->created_at->format('d M Y H:i') }}</span>
             @if($k->alasan_penolakan)
             <span class="text-red-600 text-xs w-full">Alasan ditolak: {{ $k->alasan_penolakan }}</span>

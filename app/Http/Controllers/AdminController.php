@@ -10,7 +10,7 @@ use App\Models\User;
 use App\Models\Vendor;
 use App\Models\VendorAnggaran;
 use App\Http\Controllers\Admin\KendalaController as AdminKendalaController;
-use App\Services\BookingLapanganActivationService;
+use App\Services\AdminDashboardBookingService;
 use App\Support\JadwalTerpaduService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\DB;
 
 class AdminController extends Controller
 {
-    public function index()
+    public function index(AdminDashboardBookingService $dashboardBookings)
     {
         $stats = [
             'total_booking' => Pesanan::count(),
@@ -29,31 +29,26 @@ class AdminController extends Controller
             'pembayaran_pending' => PembayaranKonfirmasi::where('status', 'Menunggu Konfirmasi')->count(),
         ];
 
-        $bookingTerbaru = Pesanan::with(['user', 'paket'])
+        $bookingAktif = $dashboardBookings->activePaidBookings(12);
+
+        $bookingTerbaru = Pesanan::query()
+            ->activePaidForDashboard()
+            ->with(['user:id,name,email', 'paket:id,nama_paket'])
             ->latest()
-            ->take(5)
+            ->take(8)
             ->get();
 
         $kendalaAktif = AdminKendalaController::aktifUntukDashboard(12);
         $kendalaSelesai = AdminKendalaController::selesaiUntukDashboard(8);
 
-        $activationService = app(BookingLapanganActivationService::class);
-        $bookingPerluVerifikasi = Pesanan::query()
-            ->with(['user:id,name', 'paket:id,nama_paket', 'vendors'])
-            ->whereIn('status_pembayaran', ['dp_paid', 'fully_paid'])
-            ->where('status', '!=', 'Dibatalkan')
-            ->latest()
-            ->take(20)
-            ->get()
-            ->filter(fn (Pesanan $p) => $activationService->needsActivation($p))
-            ->take(8)
-            ->values();
+        $bookingPerluVerifikasi = $dashboardBookings->bookingsNeedingLapanganActivation(8);
 
         $korlapUsers = User::where('role', 'lapangan')->orderBy('name')->get(['id', 'name']);
 
         return view('admin.modules.dashboard', [
             'activeMenu' => 'dashboard',
             'stats' => $stats,
+            'bookingAktif' => $bookingAktif,
             'bookingTerbaru' => $bookingTerbaru,
             'kendalaAktif' => $kendalaAktif,
             'kendalaAktifCount' => $kendalaAktif->count(),

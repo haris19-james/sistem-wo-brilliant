@@ -11,7 +11,11 @@ use App\Services\AgendaGeneratorService;
 use App\Services\BookingCancellationService;
 use App\Services\BookingLapanganActivationService;
 use App\Services\ItemTambahanService;
+use App\Events\BookingCompleted;
+use App\Models\Tugas;
 use App\Services\PaymentWorkflowService;
+use App\Services\VendorFieldTaskService;
+use App\Services\NotificationCenterService;
 use App\Support\PesananDeletionService;
 use App\Support\BookingDynamicStatus;
 use Illuminate\Http\Request;
@@ -83,7 +87,7 @@ class PesananController extends Controller
 
     public function show(Pesanan $pesanan)
     {
-        $load = ['user', 'paket', 'korlap', 'invoices', 'progress', 'rundowns', 'laporanLapangans.user', 'vendors'];
+        $load = ['user', 'paket', 'korlap', 'invoices', 'progress', 'rundowns', 'laporanLapangans.user', 'vendors', 'tugas.vendor', 'tugas.pic', 'tugas.checklists'];
         if (Schema::hasTable('item_tambahan')) {
             $load[] = 'itemTambahan.invoice';
         } elseif (Schema::hasTable('booking_addons')) {
@@ -257,7 +261,7 @@ class PesananController extends Controller
         ]);
 
         return redirect()->route('admin.booking.show', $pesanan)
-            ->with('success', 'Jadwal meeting berhasil dibuat!');
+            ->with('success', 'Jadwal meeting berhasil dibuat! Perubahan langsung terlihat di dashboard klien dan tim lapangan.');
     }
 
     /**
@@ -356,15 +360,24 @@ class PesananController extends Controller
                 $pesanan->update([
                     'status_pembayaran' => 'fully_paid',
                     'akses_jadwal' => 'full',
+                    'status_pemesanan' => in_array($pesanan->status_pemesanan, ['confirmed', 'on_progress', 'completed'], true)
+                        ? $pesanan->status_pemesanan
+                        : 'pending_verification',
                     'fully_paid_by_admin_at' => now(),
                     'catatan_pembayaran' => null,
                 ]);
 
-                app(BookingLapanganActivationService::class)->activate($pesanan->fresh());
+                if ($pesanan->status === 'Menunggu') {
+                    $pesanan->update(['status' => 'Sedang Berlangsung']);
+                }
+
+                app(BookingCancellationService::class)->syncStatusBooking($pesanan->fresh());
             });
 
+            AdminPerformanceCache::forgetBookingStats();
+
             return redirect()->back()
-                ->with('success', 'Pelunasan berhasil diverifikasi! Tugas tim lapangan diperbarui dan akses penuh dibuka.');
+                ->with('success', 'Pelunasan berhasil diverifikasi! Booking lunas muncul di daftar booking aktif admin.');
         } catch (\Exception $e) {
             \Log::error('Error verifying pelunasan: ' . $e->getMessage());
             return redirect()->back()
@@ -399,6 +412,10 @@ class PesananController extends Controller
             $pesanan->refresh();
             if ($pesanan->korlap_id) {
                 app(\App\Services\NotificationCenterService::class)->bookingAssignedToKorlap($pesanan);
+                \Log::info('[Admin\\PesananController] booking assigned to korlap', [
+                    'pesanan_id' => $pesanan->id,
+                    'korlap_id' => $pesanan->korlap_id,
+                ]);
             }
 
             return redirect()->back()->with(
@@ -413,6 +430,138 @@ class PesananController extends Controller
 
             return redirect()->back()->with('error', 'Gagal memverifikasi booking untuk tim lapangan.');
         }
+    }
+
+    public function verifyTask(Request $request, Pesanan $pesanan, Tugas $tugas, VendorFieldTaskService $taskService)
+    {
+        if ($tugas->pesanan_id !== $pesanan->id) {
+            abort(404);
+        }
+
+        if ($tugas->status !== 'awaiting_verification') {
+            return redirect()->back()->with('warning', 'Tugas tidak dalam status menunggu verifikasi.');
+        }
+
+        $tugas->update([
+            'status' => 'completed',
+            'korlap_verified_at' => now(),
+        ]);
+
+        if ($tugas->vendor) {
+            $taskService->syncVendorPerformance($pesanan, $tugas->vendor);
+        }
+        app(NotificationCenterService::class)->notifyAdmins(
+            "Tugas lapangan diverifikasi oleh admin: {$tugas->nama_tugas} ({$pesanan->nomor_pesanan}).",
+            route('admin.booking.show', $pesanan->id),
+            'normal',
+            'task'
+        );
+
+        // Notify Korlap so their dashboard can revalidate/poll for updates
+        if ($pesanan->korlap_id) {
+            app(NotificationCenterService::class)->notifyKorlapForPesanan(
+                $pesanan,
+                "Tugas diverifikasi: {$tugas->nama_tugas}. Silakan refresh dasbor.",
+                route('lapangan.tugas.index', ['pesanan_id' => $pesanan->id]),
+                'normal',
+                'task'
+            );
+
+            \Log::info('[Admin\\PesananController] notify korlap after task verify', [
+                'pesanan_id' => $pesanan->id,
+                'tugas_id' => $tugas->id,
+                'korlap_id' => $pesanan->korlap_id,
+            ]);
+        }
+
+        $message = 'Tugas berhasil diverifikasi.';
+        if ($this->completeBookingIfAllTasksVerified($pesanan)) {
+            $message = 'Tugas diverifikasi dan booking selesai. Rating klien akan diproses.';
+        }
+
+        return redirect()->back()->with('success', $message);
+    }
+
+    public function forceFinishTask(Request $request, Pesanan $pesanan, Tugas $tugas, VendorFieldTaskService $taskService)
+    {
+        if ($tugas->pesanan_id !== $pesanan->id) {
+            abort(404);
+        }
+
+        if (in_array($tugas->status, ['completed', 'cancelled'], true)) {
+            return redirect()->back()->with('info', 'Tugas sudah selesai atau dibatalkan.');
+        }
+
+        $tugas->update([
+            'status' => 'completed',
+            'korlap_verified_at' => now(),
+        ]);
+
+        if ($tugas->vendor) {
+            $taskService->syncVendorPerformance($pesanan, $tugas->vendor);
+        }
+
+        app(NotificationCenterService::class)->notifyAdmins(
+            "Tugas lapangan dipaksa selesai oleh admin: {$tugas->nama_tugas} ({$pesanan->nomor_pesanan}).",
+            route('admin.booking.show', $pesanan->id),
+            'urgent',
+            'task'
+        );
+
+        // Notify Korlap to refresh dashboard when admin force-finishes a task
+        if ($pesanan->korlap_id) {
+            app(NotificationCenterService::class)->notifyKorlapForPesanan(
+                $pesanan,
+                "Tugas dipaksa selesai: {$tugas->nama_tugas}. Silakan refresh dasbor.",
+                route('lapangan.tugas.index', ['pesanan_id' => $pesanan->id]),
+                'urgent',
+                'task'
+            );
+
+            \Log::warning('[Admin\\PesananController] korlap notified after force finish', [
+                'pesanan_id' => $pesanan->id,
+                'tugas_id' => $tugas->id,
+                'korlap_id' => $pesanan->korlap_id,
+            ]);
+        }
+
+        $message = 'Tugas dipaksa selesai oleh admin.';
+        if ($this->completeBookingIfAllTasksVerified($pesanan)) {
+            $message = 'Tugas dipaksa selesai dan booking dinyatakan selesai. Rating klien akan diproses.';
+        }
+
+        return redirect()->back()->with('success', $message);
+    }
+
+    protected function completeBookingIfAllTasksVerified(Pesanan $pesanan): bool
+    {
+        if ($pesanan->tugas()->whereNotIn('status', ['completed', 'cancelled'])->exists()) {
+            return false;
+        }
+
+        if ($pesanan->status_pemesanan === 'completed' && $pesanan->status === 'Selesai') {
+            return false;
+        }
+
+        if ($pesanan->status === 'Dibatalkan') {
+            return false;
+        }
+
+        $pesanan->update([
+            'status_pemesanan' => 'completed',
+            'status' => 'Selesai',
+        ]);
+
+        BookingCompleted::dispatch($pesanan->fresh(['user', 'vendors']));
+        app(NotificationCenterService::class)->bookingStatusForCustomer($pesanan, 'Selesai');
+        app(NotificationCenterService::class)->notifyAdmins(
+            "Booking selesai setelah semua tugas terverifikasi: {$pesanan->nomor_pesanan}.",
+            route('admin.booking.show', $pesanan->id),
+            'normal',
+            'booking'
+        );
+
+        return true;
     }
 
     public function approveCancellation(Request $request, Pesanan $pesanan, BookingCancellationService $cancellationService)

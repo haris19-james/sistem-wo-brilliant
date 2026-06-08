@@ -26,6 +26,10 @@
 
     {{-- Filter & Search --}}
     <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 md:p-5 mb-8">
+        <div x-show="errorMessage" x-cloak class="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center justify-between gap-4">
+            <span x-text="errorMessage"></span>
+            <button type="button" @click="retryLoadMore()" class="text-sm font-semibold underline decoration-red-700/70">Coba lagi</button>
+        </div>
         <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
             <div class="md:col-span-5 relative">
                 <svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -134,8 +138,11 @@
 
     <div x-ref="loadMoreSentinel" class="h-1" aria-hidden="true"></div>
 
-    <p x-show="!loading && vendors.length === 0" x-cloak class="text-center text-gray-500 py-16">
+    <p x-show="!loading && !errorMessage && vendors.length === 0" x-cloak class="text-center text-gray-500 py-16">
         Tidak ada vendor yang cocok dengan filter.
+    </p>
+    <p x-show="errorMessage && vendors.length === 0" x-cloak class="text-center text-red-600 py-16">
+        Terjadi kesalahan saat memuat data. Silakan coba lagi.
     </p>
     <p x-show="loadingMore" class="text-center text-sm text-gray-400 py-4">Memuat vendor...</p>
 

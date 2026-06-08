@@ -54,12 +54,10 @@ Route::get('/kontak', [PageController::class, 'contact'])->name('contact');
 Route::post('/kontak', [PageController::class, 'contactStore'])->name('contact.store');
 
 // Autentikasi
-Route::middleware('guest')->group(function () {
-    Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
-    Route::post('/login', [AuthController::class, 'login']);
-    Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
-    Route::post('/register', [AuthController::class, 'register']);
-});
+Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
+Route::post('/login', [AuthController::class, 'login']);
+Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
+Route::post('/register', [AuthController::class, 'register']);
 
 Route::post('/logout', [AuthController::class, 'logout'])
     ->middleware('auth')
@@ -86,10 +84,7 @@ Route::middleware('auth')->get('/bukti-pembayaran/{konfirmasi}', [BuktiPembayara
 
 // Panel Admin
 Route::prefix('admin')->name('admin.')->group(function () {
-    Route::middleware('guest')->group(function () {
-        Route::get('/login', [AuthController::class, 'showAdminLogin'])->name('login');
-        Route::post('/login', [AuthController::class, 'adminLogin']);
-    });
+    Route::get('/login', fn () => redirect()->route('login'))->name('login');
 
     Route::middleware(['auth', 'admin'])->group(function () {
         Route::get('/dashboard', [AdminController::class, 'index'])->name('dashboard');
@@ -108,8 +103,15 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/booking/{pesanan}/verify-dp', [AdminPesananController::class, 'verifyDP'])->name('booking.verify_dp');
         Route::post('/booking/{pesanan}/verify-pelunasan', [AdminPesananController::class, 'verifyPelunasan'])->name('booking.verify_pelunasan');
         Route::post('/booking/{pesanan}/verify-lapangan', [AdminPesananController::class, 'verifyLapangan'])->name('booking.verify_lapangan');
+        Route::post('/booking/{pesanan}/tugas/{tugas}/verify', [AdminPesananController::class, 'verifyTask'])->name('booking.tugas.verify');
+        Route::post('/booking/{pesanan}/tugas/{tugas}/force-finish', [AdminPesananController::class, 'forceFinishTask'])->name('booking.tugas.force_finish');
         Route::post('/booking/{pesanan}/reject-payment', [AdminPesananController::class, 'rejectPayment'])->name('booking.reject_payment');
         Route::post('/booking/{pesanan}/approve-cancellation', [AdminPesananController::class, 'approveCancellation'])->name('booking.approve_cancellation');
+        Route::get('/booking/{pesanan}/refund/preview', [\App\Http\Controllers\Admin\RefundController::class, 'preview'])->name('booking.refund.preview');
+        Route::post('/booking/{pesanan}/refund/process', [\App\Http\Controllers\Admin\RefundController::class, 'process'])->name('booking.refund.process');
+        Route::get('/booking/pending-cancellations', [\App\Http\Controllers\Admin\RefundController::class, 'pendingIndex'])->name('booking.pending_cancellations');
+        Route::post('/booking/{pesanan}/refund/approve', [\App\Http\Controllers\Admin\RefundController::class, 'approve'])->name('booking.refund.approve');
+        Route::post('/booking/{pesanan}/refund/deny', [\App\Http\Controllers\Admin\RefundController::class, 'deny'])->name('booking.refund.deny');
         
         // ✅ Refund Routes - Auto-calculate & notify multi-role
         Route::get('/refund/eligible', [\App\Http\Controllers\Admin\RefundController::class, 'listEligible'])->name('refund.eligible');
@@ -180,13 +182,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
 // Panel Tim Lapangan
 Route::prefix('lapangan')->name('lapangan.')->group(function () {
-    Route::middleware('guest')->group(function () {
-        Route::get('/login', [AuthController::class, 'showLapanganLogin'])->name('login');
-        Route::post('/login', [AuthController::class, 'lapanganLogin']);
-    });
+    Route::get('/login', fn () => redirect()->route('login'))->name('login');
 
     Route::middleware(['auth', 'lapangan'])->group(function () {
         Route::get('/dashboard', [LapanganDashboardController::class, 'index'])->name('dashboard');
+        Route::get('/dashboard/refresh', [LapanganDashboardController::class, 'refresh'])->name('dashboard.refresh');
         Route::get('/pesanan', [LapanganPesananController::class, 'index'])->name('pesanan.index');
         Route::get('/pesanan/{pesanan}', [LapanganPesananController::class, 'show'])->name('pesanan.show');
         Route::patch('/pesanan/{pesanan}/progress', [LapanganPesananController::class, 'updateProgress'])->middleware('payment.deadline')->name('pesanan.progress');
@@ -213,6 +213,7 @@ Route::prefix('lapangan')->name('lapangan.')->group(function () {
         Route::resource('tugas', LapanganTugasController::class);
 
         // ✅ Vendor Meetings Routes for Lapangan (Korlap)
+        Route::post('/vendor-meetings', [LapanganVendorMeetingController::class, 'store'])->name('vendor-meetings.store');
         Route::get('/vendor-meetings/{vendorMeeting}', [LapanganVendorMeetingController::class, 'show'])->name('vendor-meetings.show');
         Route::post('/vendor-meetings/{vendorMeeting}/complete', [LapanganVendorMeetingController::class, 'complete'])->name('vendor-meetings.complete');
         Route::patch('/vendor-meetings/{vendorMeeting}/status', [LapanganVendorMeetingController::class, 'updateStatus'])->name('vendor-meetings.updateStatus');
@@ -293,6 +294,7 @@ Route::middleware(['auth', 'client'])->prefix('client')->name('client.')->group(
     Route::put('/pesanan/review/{bookingReview}', [\App\Http\Controllers\Customer\BookingReviewController::class, 'update'])->name('pesanan.review.update');
     Route::delete('/pesanan/review/{bookingReview}', [\App\Http\Controllers\Customer\BookingReviewController::class, 'destroy'])->name('pesanan.review.destroy');
     Route::get('/jadwal', [CustomerController::class, 'jadwal'])->name('jadwal');
+    Route::get('/vendor-meetings', [\App\Http\Controllers\Customer\VendorMeetingController::class, 'index'])->name('vendor-meetings.index');
     Route::get('/invoice/{id}', [CustomerController::class, 'invoice'])->name('invoice');
     // Cetak Kwitansi (PDF) - Client (pemilik booking)
     Route::get('/pesanan/{pesanan}/kwitansi', [\App\Http\Controllers\InvoicePdfController::class, 'downloadInvoice'])->name('pesanan.download_invoice');

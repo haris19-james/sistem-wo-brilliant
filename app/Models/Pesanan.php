@@ -41,10 +41,13 @@ class Pesanan extends Model
         'jumlah_refund',
         'pembatalan_diminta_at',
         'dibatalkan_at',
+        'waktu_transfer',
+        'bukti_transfer_url',
         'expired_at',
         'laporan_korlap',
         'verified_admin_id',
         'verified_by_admin_at',
+        'booking_disetujui_at',
         'fully_paid_by_admin_at',
     ];
 
@@ -57,15 +60,18 @@ class Pesanan extends Model
             'pembatalan_diminta_at' => 'datetime',
             'dibatalkan_at' => 'datetime',
             'jumlah_refund' => 'decimal:2',
+            'waktu_transfer' => 'datetime',
             'expired_at' => 'datetime',
             'verified_by_admin_at' => 'datetime',
+            'booking_disetujui_at' => 'datetime',
             'fully_paid_by_admin_at' => 'datetime',
             'estimasi_budget' => 'decimal:2',
             'laporan_korlap' => 'string',
             'status_pembayaran' => 'string',  // 'unpaid', 'dp_paid', 'fully_paid'
             'akses_jadwal' => 'string',       // 'none', 'partial', 'full'
             'catatan_pembayaran' => 'string',
-            'status_pemesanan' => 'string',   // ENUM: pending, confirmed, on_progress, completed, canceled, pending_cancellation, expired
+            'status_pemesanan' => 'string',   // ENUM: pending, confirmed, pending_verification, on_progress, completed, canceled, pending_cancellation, expired
+            'bukti_transfer_url' => 'string',
         ];
     }
 
@@ -279,6 +285,49 @@ class Pesanan extends Model
     // ========================
 
     /**
+     * Booking aktif di dashboard admin: DP terverifikasi ATAU lunas penuh.
+     */
+    public function scopeActivePaidForDashboard($query)
+    {
+        return $query
+            ->where('status', '!=', 'Dibatalkan')
+            ->whereNotIn('status_pemesanan', ['cancelled', 'canceled', 'expired', 'pending_cancellation'])
+            ->when(Schema::hasColumn('pesanans', 'status_booking'), function ($q) {
+                $q->where(function ($inner) {
+                    $inner->whereNull('status_booking')
+                        ->orWhere('status_booking', '!=', 'cancelled');
+                });
+            })
+            ->where(function ($q) {
+                $q->whereIn('status_pembayaran', ['dp_paid', 'fully_paid'])
+                    ->orWhereRaw('LOWER(TRIM(COALESCE(status_pembayaran, ""))) IN (?, ?)', ['lunas', 'paid_off'])
+                    ->orWhereHas('invoices', function ($inv) {
+                        $inv->whereIn('status', ['DP Lunas', 'Lunas'])
+                            ->orWhereRaw('LOWER(TRIM(status)) = ?', ['lunas']);
+                    });
+            });
+    }
+
+    /**
+     * Nama klien untuk tampilan admin (relasi user, fallback email).
+     */
+    public function getClientDisplayNameAttribute(): string
+    {
+        if ($this->relationLoaded('user') || $this->user) {
+            $name = trim((string) ($this->user?->name ?? ''));
+            if ($name !== '') {
+                return $name;
+            }
+
+            $email = trim((string) ($this->user?->email ?? ''));
+
+            return $email !== '' ? $email : 'Klien #'.$this->user_id;
+        }
+
+        return '—';
+    }
+
+    /**
      * Scope untuk filter booking yang visible ke Korlap.
      * Hanya menampilkan pesanan yang sudah diverifikasi pembayaran DP atau lunas.
      * Ini mencegah Korlap melihat pesanan yang belum dibayar.
@@ -289,9 +338,10 @@ class Pesanan extends Model
             $korlapId = auth()->id();
         }
 
-        return $query->where('korlap_id', $korlapId)
-            ->whereIn('status_pembayaran', ['dp_paid', 'fully_paid'])
-            ->confirmedForLapangan();
+        return $query
+            ->where('korlap_id', $korlapId)
+            ->where('status', '!=', 'Dibatalkan')
+            ->whereNotIn('status_pemesanan', ['cancelled', 'canceled', 'expired', 'pending_cancellation']);
     }
 
     /**
@@ -316,6 +366,10 @@ class Pesanan extends Model
         if (in_array($this->status_pemesanan, ['completed', 'success'], true)
             || $this->status === 'Selesai') {
             return 'Completed';
+        }
+
+        if ($this->status_pemesanan === 'pending_verification') {
+            return 'Pending Verification';
         }
 
         if ($this->isConfirmedForLapangan()) {
@@ -664,6 +718,7 @@ class Pesanan extends Model
             'approved_dp' => 'DP Terverifikasi',
             'approved_lunas' => 'Lunas Penuh',
             'cancelled' => 'Dibatalkan',
+            'refunded' => 'Completed (Refunded)',
             default => '—',
         };
     }

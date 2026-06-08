@@ -13,11 +13,14 @@ return [
             'atas_nama' => 'PT Brilliant Event WO',
         ],
     ],
-    'dp_persen' => 30,
-    /** Hari setelah invoice dibuat — batas bayar DP / uang muka */
-    'dp_hari_setelah_invoice' => 7,
-    /** Hari sebelum tanggal acara — batas pelunasan penuh (H-14) */
-    'pelunasan_hari_sebelum_acara' => (int) env('PEMBAYARAN_PELUNASAN_HARI', 14),
+    /** Persentase DP minimal dari total tagihan (contoh: 20% dari 75jt = 15jt) */
+    'dp_persen' => (int) env('PEMBAYARAN_DP_PERSEN', 20),
+    /** Hari setelah booking disetujui — batas bayar DP */
+    'dp_hari_setelah_disetujui' => (int) env('PEMBAYARAN_DP_HARI', 3),
+    /** Fallback jika booking_disetujui_at belum tercatat */
+    'dp_hari_setelah_invoice' => (int) env('PEMBAYARAN_DP_HARI_INVOICE', 3),
+    /** Hari sebelum tanggal acara — batas pelunasan penuh */
+    'pelunasan_hari_sebelum_acara' => (int) env('PEMBAYARAN_PELUNASAN_HARI', 30),
     /** Pengingat banner customer saat sisa hari <= nilai ini (status DP) */
     'deadline_warning_hari' => (int) env('PEMBAYARAN_DEADLINE_WARNING_HARI', 7),
     /** Jumlah cicilan antara DP dan pelunasan */

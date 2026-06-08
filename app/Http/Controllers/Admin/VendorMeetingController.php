@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\VendorMeeting;
 use App\Models\Pesanan;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 
 class VendorMeetingController extends Controller
 {
@@ -14,7 +15,13 @@ class VendorMeetingController extends Controller
      */
     public function index(Request $request)
     {
-        $query = VendorMeeting::with(['booking', 'korlap'])->latest('meeting_date');
+        $query = VendorMeeting::with([
+            'booking',
+            'booking.user:id,name,email',
+            'booking.paket:id,nama_paket',
+            'korlap:id,name',
+            'vendor:id,nama_vendor',
+        ])->latest('meeting_date');
 
         // Filter by status
         if ($request->filled('status') && $request->status !== 'semua') {
@@ -36,6 +43,22 @@ class VendorMeetingController extends Controller
         }
 
         $meetings = $query->paginate(15)->withQueryString();
+
+        // Debug logging untuk verifikasi sinkronisasi Admin-Korlap
+        try {
+            $meetingIds = $meetings->pluck('id')->all();
+            $clientsInResults = $meetings->pluck('booking.nama_pasangan')->unique()->values()->all();
+            \Illuminate\Support\Facades\Log::debug('[VendorMeetingController] Admin index query results', [
+                'filters_applied' => $request->only(['status', 'korlap_id', 'q']),
+                'total_meetings_fetched' => $meetings->count(),
+                'current_page' => $meetings->currentPage(),
+                'total_pages' => $meetings->lastPage(),
+                'client_names_in_page' => $clientsInResults,
+                'target_haris_nilam_found' => collect($clientsInResults)->contains(fn ($name) => stripos($name, 'Haris') !== false || stripos($name, 'Nilam') !== false),
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('[VendorMeetingController] Admin logging error: '.$e->getMessage());
+        }
 
         // Stats
         $stats = [
@@ -137,12 +160,34 @@ class VendorMeetingController extends Controller
 
             // event(new VendorMeetingScheduled($meeting));
 
+            // Try to trigger frontend cache revalidation for the lapangan schedule
+            try {
+                $revalidateUrl = env('FRONTEND_REVALIDATE_URL');
+                $revalidateSecret = env('FRONTEND_REVALIDATE_SECRET');
+                if ($revalidateUrl) {
+                    $req = Http::withHeaders(array_filter([
+                        'Accept' => 'application/json',
+                        'x-revalidate-secret' => $revalidateSecret ?: null,
+                    ]))->post($revalidateUrl, ['path' => '/lapangan/jadwal']);
+
+                    \Log::debug('[Admin\VendorMeeting] sent revalidate request', [
+                        'url' => $revalidateUrl,
+                        'status' => $req->status(),
+                        'booking_id' => $validated['booking_id'],
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                \Log::warning('[Admin\VendorMeeting] revalidate request failed: '.$e->getMessage());
+            }
+
             $successMessage = $booking->korlap_id
                 ? 'Jadwal meeting vendor berhasil dibuat dan otomatis ditugaskan ke Korlap '.($booking->korlap?->name ?? 'Tim Lapangan')
                 : 'Jadwal meeting vendor berhasil dibuat.';
 
+            session()->flash('vendor_meeting_synced', true);
+
             return redirect()->route('admin.vendor-meetings.show', $meeting->id)
-                ->with('success', $successMessage);
+                ->with('success', $successMessage.' Jadwal sudah tersinkron ke dashboard klien dan tim lapangan.');
         } catch (\Exception $e) {
             \Log::error('Error creating VendorMeeting: ' . $e->getMessage());
             return redirect()->back()->withInput()->with('error', 'Gagal menyimpan jadwal: '.$e->getMessage());
@@ -211,8 +256,27 @@ class VendorMeetingController extends Controller
             'notes' => $validated['notes'],
         ]);
 
+        // Trigger cache revalidation untuk sinkronisasi real-time
+        try {
+            $revalidateUrl = env('FRONTEND_REVALIDATE_URL');
+            $revalidateSecret = env('FRONTEND_REVALIDATE_SECRET');
+            if ($revalidateUrl) {
+                Http::withHeaders(array_filter([
+                    'Accept' => 'application/json',
+                    'x-revalidate-secret' => $revalidateSecret ?: null,
+                ]))->post($revalidateUrl, ['paths' => ['/lapangan/jadwal', '/lapangan/dashboard', '/customer/jadwal']]);
+                
+                \Log::debug('[Admin\VendorMeeting] update - cache revalidated', [
+                    'meeting_id' => $vendorMeeting->id,
+                    'booking_id' => $validated['booking_id'],
+                ]);
+            }
+        } catch (\Throwable $e) {
+            \Log::warning('[Admin\VendorMeeting] update - revalidate failed: '.$e->getMessage());
+        }
+
         return redirect()->route('admin.vendor-meetings.show', $vendorMeeting->id)
-            ->with('success', 'Jadwal meeting berhasil diperbarui.');
+            ->with('success', 'Jadwal meeting berhasil diperbarui. Data sudah tersinkron ke Korlap dan Customer dashboard.');
     }
 
     /**
@@ -221,10 +285,30 @@ class VendorMeetingController extends Controller
     public function destroy(VendorMeeting $vendorMeeting)
     {
         $title = $vendorMeeting->title;
+        $bookingId = $vendorMeeting->booking_id;
         $vendorMeeting->delete();
 
+        // Trigger cache revalidation untuk sinkronisasi real-time
+        try {
+            $revalidateUrl = env('FRONTEND_REVALIDATE_URL');
+            $revalidateSecret = env('FRONTEND_REVALIDATE_SECRET');
+            if ($revalidateUrl) {
+                Http::withHeaders(array_filter([
+                    'Accept' => 'application/json',
+                    'x-revalidate-secret' => $revalidateSecret ?: null,
+                ]))->post($revalidateUrl, ['paths' => ['/lapangan/jadwal', '/lapangan/dashboard', '/customer/jadwal']]);
+                
+                \Log::debug('[Admin\VendorMeeting] destroy - cache revalidated', [
+                    'meeting_title' => $title,
+                    'booking_id' => $bookingId,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            \Log::warning('[Admin\VendorMeeting] destroy - revalidate failed: '.$e->getMessage());
+        }
+
         return redirect()->route('admin.vendor-meetings.index')
-            ->with('success', "Meeting '{$title}' berhasil dihapus.");
+            ->with('success', "Meeting '{$title}' berhasil dihapus. Data sudah tersinkron ke Korlap dan Customer dashboard.");
     }
 
     /**
@@ -236,10 +320,31 @@ class VendorMeetingController extends Controller
             'status' => ['required', 'in:scheduled,ongoing,completed'],
         ]);
 
+        $oldStatus = $vendorMeeting->status;
         $vendorMeeting->update(['status' => $request->status]);
 
+        // Trigger cache revalidation untuk sinkronisasi real-time
+        try {
+            $revalidateUrl = env('FRONTEND_REVALIDATE_URL');
+            $revalidateSecret = env('FRONTEND_REVALIDATE_SECRET');
+            if ($revalidateUrl) {
+                Http::withHeaders(array_filter([
+                    'Accept' => 'application/json',
+                    'x-revalidate-secret' => $revalidateSecret ?: null,
+                ]))->post($revalidateUrl, ['paths' => ['/lapangan/jadwal', '/lapangan/dashboard', '/customer/jadwal']]);
+                
+                \Log::debug('[Admin\VendorMeeting] updateStatus - cache revalidated', [
+                    'meeting_id' => $vendorMeeting->id,
+                    'status_change' => "$oldStatus → {$request->status}",
+                    'booking_id' => $vendorMeeting->booking_id,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            \Log::warning('[Admin\VendorMeeting] updateStatus - revalidate failed: '.$e->getMessage());
+        }
+
         return redirect()->back()
-            ->with('success', "Status meeting diubah menjadi '{$request->status}'.");
+            ->with('success', "Status meeting diubah menjadi '{$request->status}'. Data sudah tersinkron ke Korlap dan Customer dashboard.");
     }
 
     /**

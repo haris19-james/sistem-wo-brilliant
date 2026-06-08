@@ -15,6 +15,10 @@ class AuthController extends Controller
 {
     public function showLogin()
     {
+        if (auth()->check()) {
+            return $this->redirectAfterLogin(auth()->user()->role);
+        }
+
         return view('auth.login');
     }
 
@@ -27,30 +31,10 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
-
             $role = Auth::user()->role;
+            $request->session()->put('user_role', $role);
 
-            if ($role === 'admin') {
-                Auth::logout();
-                $request->session()->invalidate();
-                $request->session()->regenerateToken();
-
-                return back()
-                    ->withErrors(['email' => 'Akun admin harus login melalui halaman admin.'])
-                    ->onlyInput('email');
-            }
-
-            if ($role === 'lapangan') {
-                Auth::logout();
-                $request->session()->invalidate();
-                $request->session()->regenerateToken();
-
-                return back()
-                    ->withErrors(['email' => 'Akun tim lapangan login di halaman Tim Lapangan.'])
-                    ->onlyInput('email');
-            }
-
-            return redirect()->intended(route('client.dashboard'));
+            return $this->redirectAfterLogin($role);
         }
 
         return back()
@@ -60,7 +44,7 @@ class AuthController extends Controller
 
     public function showAdminLogin()
     {
-        return view('auth.admin-login');
+        return redirect()->route('login');
     }
 
     public function adminLogin(Request $request)
@@ -93,7 +77,7 @@ class AuthController extends Controller
 
     public function showLapanganLogin()
     {
-        return view('auth.lapangan-login');
+        return redirect()->route('login');
     }
 
     public function lapanganLogin(Request $request)
@@ -126,11 +110,19 @@ class AuthController extends Controller
 
     public function showRegister()
     {
+        if (auth()->check()) {
+            return $this->redirectAfterLogin(auth()->user()->role);
+        }
+
         return view('auth.register');
     }
 
     public function register(Request $request): JsonResponse|RedirectResponse
     {
+        if (auth()->check()) {
+            return $this->redirectAfterLogin(auth()->user()->role);
+        }
+
         $wantsJson = $this->registerWantsJson($request);
 
         try {
@@ -160,6 +152,7 @@ class AuthController extends Controller
 
             Auth::login($user, $request->boolean('remember'));
             $request->session()->regenerate();
+            $request->session()->put('user_role', $user->role);
 
             $successMessage = 'Selamat! Anda berhasil membuat akun dan sudah masuk.';
 
@@ -230,6 +223,16 @@ class AuthController extends Controller
         }
     }
 
+    protected function redirectAfterLogin(?string $role)
+    {
+        return match ($role) {
+            'admin' => redirect()->intended(route('admin.dashboard')),
+            'lapangan' => redirect()->intended(route('lapangan.dashboard')),
+            'client' => redirect()->intended(route('client.dashboard')),
+            default => abort(403, 'Peran pengguna tidak diizinkan.'),
+        };
+    }
+
     protected function registerWantsJson(Request $request): bool
     {
         return $request->expectsJson()
@@ -239,17 +242,11 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        $role = $request->user()?->role;
-
         Auth::logout();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return match ($role) {
-            'admin' => redirect()->route('admin.login'),
-            'lapangan' => redirect()->route('lapangan.login'),
-            default => redirect()->route('home'),
-        };
+        return redirect()->route('login');
     }
 }

@@ -37,7 +37,7 @@
             @php
                 $active = $activeMenu ?? '';
                 $link = fn ($key, $route) => $active === $key
-                    ? 'flex items-center px-4 py-3 bg-leafSoft text-bottle font-semibold rounded-xl'
+                    ? 'flex items-center px-4 py-3 bg-bottle/10 text-bottle font-semibold rounded-xl ring-1 ring-bottle/15'
                     : 'flex items-center px-4 py-3 text-grayText hover:bg-gray-50 hover:text-bottle font-medium rounded-xl transition';
             @endphp
             <a href="{{ route('admin.dashboard') }}" class="{{ $link('dashboard', 'admin.dashboard') }}" data-loading-message="Memuat ringkasan dashboard...">

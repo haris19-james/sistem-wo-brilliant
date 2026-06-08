@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\Pesanan;
 use App\Models\VendorMeeting;
+use App\Services\CustomerVendorMeetingService;
 use App\Services\ScheduleAccessService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -76,11 +77,11 @@ class JadwalTerpaduService
         $pesanans = Pesanan::query()
             ->where('user_id', $userId)
             ->whereNotIn('status', ['Dibatalkan'])
-            ->with(['paket'])
+            ->with(self::eagerRelations())
             ->orderByDesc('tanggal_acara')
             ->get();
 
-        $selected = self::resolveSelectedPesanan($pesanans, $pesananId);
+        $selected = self::resolveSelectedPesanan($pesanans, $pesananId, $userId);
 
         if ($selected) {
             $selected->loadMissing(self::eagerRelations());
@@ -103,9 +104,10 @@ class JadwalTerpaduService
      */
     private static function compose(Collection $pesanans, ?Pesanan $selected, string $panel): array
     {
-        $meetings = $selected && Schema::hasTable('vendor_meetings')
-            ? $selected->vendorMeetings
-            : collect();
+        $meetings = collect();
+        if ($selected && Schema::hasTable('vendor_meetings')) {
+            $meetings = app(CustomerVendorMeetingService::class)->forBooking($selected);
+        }
 
         return [
             'pesanans' => $pesanans,
@@ -122,7 +124,7 @@ class JadwalTerpaduService
     /**
      * @param  Collection<int, Pesanan>  $pesanans
      */
-    public static function resolveSelectedPesanan(Collection $pesanans, ?int $pesananId): ?Pesanan
+    public static function resolveSelectedPesanan(Collection $pesanans, ?int $pesananId, ?int $userId = null): ?Pesanan
     {
         if ($pesananId) {
             $found = $pesanans->firstWhere('id', $pesananId);
@@ -131,7 +133,13 @@ class JadwalTerpaduService
                 return $found;
             }
 
-            return Pesanan::with(self::eagerRelations())->find($pesananId);
+            $query = Pesanan::with(self::eagerRelations())->where('id', $pesananId);
+
+            if ($userId) {
+                $query->where('user_id', $userId);
+            }
+
+            return $query->first();
         }
 
         return self::resolveMainEvent($pesanans);

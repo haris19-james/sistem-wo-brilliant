@@ -153,6 +153,47 @@ class VendorMeeting extends Model
     // ========================
 
     /**
+     * Label status meeting untuk UI Korlap: Segera, Pending, Selesai.
+     */
+    public function getDisplayStatusLabelAttribute(): string
+    {
+        if ($this->status === 'completed') {
+            return 'Selesai';
+        }
+
+        if ($this->status === 'ongoing') {
+            return 'Segera';
+        }
+
+        if ($this->isOverdue() || $this->isToday()) {
+            return 'Segera';
+        }
+
+        if ($this->isUpcoming()) {
+            return 'Segera';
+        }
+
+        return 'Pending';
+    }
+
+    public function getDisplayStatusBadgeClassAttribute(): string
+    {
+        return match ($this->display_status_label) {
+            'Selesai' => 'bg-green-100 text-green-800 border border-green-300',
+            'Segera' => 'bg-amber-100 text-amber-900 border border-amber-300',
+            default => 'bg-slate-100 text-slate-700 border border-slate-300',
+        };
+    }
+
+    public function isBookingFullyPaid(): bool
+    {
+        $booking = $this->booking;
+
+        return $booking
+            && ($booking->status_pembayaran === 'fully_paid' || $booking->isPembayaranLunas());
+    }
+
+    /**
      * Accessor: format status meeting dengan label Bahasa Indonesia.
      */
     public function getStatusLabelAttribute(): string

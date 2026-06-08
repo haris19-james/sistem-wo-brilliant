@@ -221,7 +221,7 @@
                                     </svg>
                                 </button>
                                 <div x-show="heroOptOpen" style="display: none;" class="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-40">
-                                    <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Batalkan Pesanan</a>
+                                    <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50" data-open-cancel-modal="{{ $pesanan->id }}">Ajukan Pembatalan</a>
                                 </div>
                             </div>
                         </div>

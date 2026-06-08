@@ -16,61 +16,77 @@
     };
 @endphp
 
+@if(session('success'))
+<div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl text-green-800 text-sm font-medium" role="status">
+  {{ session('success') }}
+</div>
+@endif
+
 <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
   {{-- Total Booking --}}
-  <div class="relative bg-white rounded-2xl p-6 md:p-7 border border-bottle/25 shadow-sm ring-1 ring-bottle/10">
+  <div class="relative bg-white rounded-2xl p-6 md:p-7 border border-bottle/25 shadow-sm ring-1 ring-bottle/10 h-full flex flex-col justify-between overflow-hidden">
     <div class="absolute top-5 right-5 text-bottle">
       <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
       </svg>
     </div>
-    <p class="text-sm font-medium text-gray-600 pr-10">Total Booking</p>
-    <p class="text-3xl font-bold text-bottle mt-2">{{ $stats['total_booking'] }}</p>
+    <div>
+      <p class="text-sm font-medium text-gray-600 pr-10">Total Booking</p>
+      <p class="text-3xl font-bold text-bottle mt-2">{{ $stats['total_booking'] }}</p>
+    </div>
     <p class="text-xs font-semibold text-bottle/80 mt-3">{{ $stats['booking_menunggu'] }} menunggu konfirmasi</p>
   </div>
 
   {{-- Paket Aktif --}}
-  <div class="relative bg-white rounded-2xl p-6 md:p-7 border border-bottle/25 shadow-sm ring-1 ring-bottle/10">
+  <div class="relative bg-white rounded-2xl p-6 md:p-7 border border-bottle/25 shadow-sm ring-1 ring-bottle/10 h-full flex flex-col justify-between overflow-hidden">
     <div class="absolute top-5 right-5 text-bottle">
       <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
       </svg>
     </div>
-    <p class="text-sm font-medium text-gray-600 pr-10">Paket Aktif</p>
-    <p class="text-3xl font-bold text-bottle mt-2">{{ $stats['total_paket'] }}</p>
+    <div>
+      <p class="text-sm font-medium text-gray-600 pr-10">Paket Aktif</p>
+      <p class="text-3xl font-bold text-bottle mt-2">{{ $stats['total_paket'] }}</p>
+    </div>
   </div>
 
   {{-- Vendor Aktif --}}
-  <div class="relative bg-white rounded-2xl p-6 md:p-7 border border-bottle/25 shadow-sm ring-1 ring-bottle/10">
+  <div class="relative bg-white rounded-2xl p-6 md:p-7 border border-bottle/25 shadow-sm ring-1 ring-bottle/10 h-full flex flex-col justify-between overflow-hidden">
     <div class="absolute top-5 right-5 text-bottle">
       <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
       </svg>
     </div>
-    <p class="text-sm font-medium text-gray-600 pr-10">Vendor Aktif</p>
-    <p class="text-3xl font-bold text-bottle mt-2">{{ $stats['total_vendor'] }}</p>
+    <div>
+      <p class="text-sm font-medium text-gray-600 pr-10">Vendor Aktif</p>
+      <p class="text-3xl font-bold text-bottle mt-2">{{ $stats['total_vendor'] }}</p>
+    </div>
   </div>
 
   {{-- Customer --}}
-  <div class="relative bg-white rounded-2xl p-6 md:p-7 border border-bottle/25 shadow-sm ring-1 ring-bottle/10">
+  <div class="relative bg-white rounded-2xl p-6 md:p-7 border border-bottle/25 shadow-sm ring-1 ring-bottle/10 h-full flex flex-col justify-between overflow-hidden">
     <div class="absolute top-5 right-5 text-bottle">
       <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
       </svg>
     </div>
-    <p class="text-sm font-medium text-gray-600 pr-10">Client Terdaftar</p>
-    <p class="text-3xl font-bold text-bottle mt-2">{{ $stats['total_client'] }}</p>
+    <div>
+      <p class="text-sm font-medium text-gray-600 pr-10">Client Terdaftar</p>
+      <p class="text-3xl font-bold text-bottle mt-2">{{ $stats['total_client'] }}</p>
+    </div>
   </div>
 
   {{-- Pembayaran pending --}}
-  <div class="relative bg-white rounded-2xl p-6 md:p-7 border border-bottle/25 shadow-sm ring-1 ring-bottle/10 sm:col-span-2 xl:col-span-1">
+  <div class="relative bg-white rounded-2xl p-6 md:p-7 border border-bottle/25 shadow-sm ring-1 ring-bottle/10 sm:col-span-2 xl:col-span-1 h-full flex flex-col justify-between overflow-hidden">
     <div class="absolute top-5 right-5 text-bottle">
       <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
       </svg>
     </div>
-    <p class="text-sm font-medium text-gray-600 pr-10">Konfirmasi Pembayaran</p>
-    <p class="text-3xl font-bold text-bottle mt-2">{{ $stats['pembayaran_pending'] }}</p>
+    <div>
+      <p class="text-sm font-medium text-gray-600 pr-10">Konfirmasi Pembayaran</p>
+      <p class="text-3xl font-bold text-bottle mt-2">{{ $stats['pembayaran_pending'] }}</p>
+    </div>
     @if($stats['pembayaran_pending'] > 0)
     <a href="{{ route('admin.pembayaran') }}" class="text-xs font-semibold text-bottle hover:text-bottleHover mt-3 inline-flex items-center gap-1 transition">
       Review sekarang
@@ -82,7 +98,7 @@
   </div>
 </div>
 
-<div id="admin-finance-charts-root" class="mb-8"></div>
+<div id="admin-finance-charts-root" class="mb-8 min-h-[360px] w-full overflow-visible"></div>
 <script>
     window.AdminFinanceChartsData = {
         monthlyRevenue: @json($monthlyRevenue),
@@ -105,7 +121,7 @@
     <div class="px-6 py-4 flex flex-col lg:flex-row lg:items-center gap-4">
       <div class="flex-1 min-w-0">
         <p class="font-semibold text-gray-900">{{ $b->nama_pasangan }}</p>
-        <p class="text-xs text-gray-500 mt-0.5">{{ $b->nomor_pesanan }} · {{ $b->paket?->nama_paket }} · {{ $b->status_pembayaran_label }}</p>
+        <p class="text-xs text-gray-500 mt-0.5">{{ $b->nomor_pesanan }} · {{ $b->client_display_name }} · {{ $b->paket?->nama_paket }} · {{ $b->status_pembayaran_label }}</p>
         <p class="text-xs text-amber-700 mt-1">Workflow: <strong>{{ $b->workflow_status_label }}</strong>
           @if(!$b->korlap_id) · Belum ada Korlap @endif
         </p>
@@ -132,6 +148,54 @@
   </div>
 </div>
 @endif
+
+<div class="bg-white rounded-2xl border border-bottle/20 shadow-sm overflow-hidden mb-8">
+  <div class="px-6 py-5 border-b border-bottle/15 bg-leafSoft/60 flex flex-wrap justify-between items-center gap-3">
+    <div>
+      <h3 class="font-bold text-gray-900">Booking Aktif</h3>
+      <p class="text-xs text-gray-600 mt-0.5">DP terverifikasi &amp; lunas penuh — {{ ($bookingAktif ?? collect())->count() }} pesanan</p>
+    </div>
+    <a href="{{ route('admin.booking') }}" class="text-sm font-semibold text-bottle hover:text-bottleHover transition">Kelola semua →</a>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm text-left">
+      <thead class="bg-leafSoft text-bottle uppercase text-xs tracking-wide">
+        <tr>
+          <th class="px-6 py-3.5 font-semibold">No. Booking</th>
+          <th class="px-6 py-3.5 font-semibold">Klien</th>
+          <th class="px-6 py-3.5 font-semibold">Pasangan</th>
+          <th class="px-6 py-3.5 font-semibold">Paket</th>
+          <th class="px-6 py-3.5 font-semibold">Tanggal Acara</th>
+          <th class="px-6 py-3.5 font-semibold">Pembayaran</th>
+          <th class="px-6 py-3.5 font-semibold"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        @forelse($bookingAktif ?? [] as $b)
+        <tr class="hover:bg-leafSoft/50 transition-colors">
+          <td class="px-6 py-4 font-semibold text-bottle">{{ $b->nomor_pesanan }}</td>
+          <td class="px-6 py-4 text-gray-800 font-medium">{{ $b->client_display_name }}</td>
+          <td class="px-6 py-4 text-gray-700">{{ $b->nama_pasangan }}</td>
+          <td class="px-6 py-4 text-gray-600">{{ $b->paket?->nama_paket ?? '—' }}</td>
+          <td class="px-6 py-4 text-gray-600">{{ $b->tanggal_formatted }}</td>
+          <td class="px-6 py-4">
+            <span class="inline-flex px-2.5 py-1 rounded-lg text-xs font-semibold {{ $b->status_pembayaran_badge_class }}">
+              {{ $b->status_pembayaran_label }}
+            </span>
+          </td>
+          <td class="px-6 py-4">
+            <a href="{{ route('admin.booking.show', $b) }}" class="text-bottle font-semibold hover:underline text-xs">Detail</a>
+          </td>
+        </tr>
+        @empty
+        <tr>
+          <td colspan="7" class="px-6 py-12 text-center text-gray-500">Belum ada booking dengan DP terverifikasi atau lunas.</td>
+        </tr>
+        @endforelse
+      </tbody>
+    </table>
+  </div>
+</div>
 
 @php
     $hasKendala = ($kendalaAktif ?? collect())->isNotEmpty() || ($kendalaSelesai ?? collect())->isNotEmpty();
@@ -220,7 +284,7 @@
 
 <div class="bg-white rounded-2xl border border-bottle/20 shadow-sm overflow-hidden">
   <div class="px-6 py-5 border-b border-bottle/15 bg-leafSoft/60 flex flex-wrap justify-between items-center gap-3">
-    <h3 class="font-bold text-gray-900">Booking Terbaru</h3>
+    <h3 class="font-bold text-gray-900">Booking Terbaru (Berbayar)</h3>
     <a href="{{ route('admin.booking') }}" class="text-sm font-semibold text-bottle hover:text-bottleHover transition">Lihat semua →</a>
   </div>
   <div class="overflow-x-auto">
@@ -228,16 +292,19 @@
       <thead class="bg-leafSoft text-bottle uppercase text-xs tracking-wide">
         <tr>
           <th class="px-6 py-3.5 font-semibold">No. Booking</th>
+          <th class="px-6 py-3.5 font-semibold">Klien</th>
           <th class="px-6 py-3.5 font-semibold">Pasangan</th>
           <th class="px-6 py-3.5 font-semibold">Paket</th>
           <th class="px-6 py-3.5 font-semibold">Tanggal</th>
           <th class="px-6 py-3.5 font-semibold">Status</th>
+          <th class="px-6 py-3.5 font-semibold">Pembayaran</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-100">
         @forelse($bookingTerbaru as $b)
         <tr class="hover:bg-leafSoft/50 transition-colors">
           <td class="px-6 py-4 font-semibold text-bottle">{{ $b->nomor_pesanan }}</td>
+          <td class="px-6 py-4 text-gray-800 font-medium">{{ $b->client_display_name }}</td>
           <td class="px-6 py-4 text-gray-700">{{ $b->nama_pasangan }}</td>
           <td class="px-6 py-4 text-gray-600">{{ $b->paket?->nama_paket ?? '-' }}</td>
           <td class="px-6 py-4 text-gray-600">{{ $b->tanggal_formatted }}</td>
@@ -246,10 +313,15 @@
               {{ $b->status }}
             </span>
           </td>
+          <td class="px-6 py-4">
+            <span class="inline-flex px-2.5 py-1 rounded-lg text-xs font-semibold {{ $b->status_pembayaran_badge_class }}">
+              {{ $b->status_pembayaran_label }}
+            </span>
+          </td>
         </tr>
         @empty
         <tr>
-          <td colspan="5" class="px-6 py-12 text-center text-gray-500">Belum ada booking.</td>
+          <td colspan="7" class="px-6 py-12 text-center text-gray-500">Belum ada booking berbayar.</td>
         </tr>
         @endforelse
       </tbody>

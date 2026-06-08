@@ -173,8 +173,17 @@
   </div>
 
   {{-- VENDOR MEETINGS SECTION --}}
-  <div id="vendor-meetings" class="scroll-mt-24">
-  @include('lapangan.modules.vendor-meetings.section_upcoming_meetings')
+  <div id="vendor-meetings"
+       class="scroll-mt-24"
+       x-data="lapanganVendorMeetingDrawer(@js($bookingsForMeeting ?? []))"
+       x-init="init()">
+    @include('lapangan.modules.vendor-meetings.section_upcoming_meetings')
+    @include('lapangan.modules.partials.meeting-drawer')
   </div>
 </div>
+
+@push('scripts')
+<script>window.__meetingDrawerOld = @json(old() ?: []);</script>
+<script src="{{ asset('js/lapangan-vendor-meeting-drawer.js') }}?v=2"></script>
+@endpush
 @endsection

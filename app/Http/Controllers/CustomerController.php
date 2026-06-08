@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\ChatMessage;
 use App\Models\Invoice;
 use App\Models\Pesanan;
-use App\Models\VendorMeeting;
 use App\Services\AgendaGeneratorService;
+use App\Services\CustomerVendorMeetingService;
 use App\Services\PaymentDeadlineService;
 use App\Services\VendorReviewService;
 use App\Support\CustomerPaymentPresenter;
@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Schema;
 
 class CustomerController extends Controller
 {
-    public function dashboard()
+    public function dashboard(CustomerVendorMeetingService $meetingService)
     {
         if (! session()->pull('skip_expire_sync', false)) {
             Pesanan::expireOverdueBookingsIfDue();
@@ -76,18 +76,11 @@ class CustomerController extends Controller
             ->get()
             ->each(fn (Pesanan $p) => BookingDynamicStatus::sync($p));
 
-        // ✅ Ambil vendor meetings mendatang untuk Client jika tabel sudah ada
-        $upcomingVendorMeetings = collect();
-        if (Schema::hasTable('vendor_meetings')) {
-            $upcomingVendorMeetings = VendorMeeting::whereHas('booking', fn ($q) => $q->where('user_id', $user->id))
-                ->whereIn('status', ['scheduled', 'ongoing'])
-                ->where('meeting_date', '>=', now()->toDateString())
-                ->with(['booking', 'korlap'])
-                ->orderBy('meeting_date')
-                ->orderBy('meeting_time')
-                ->take(5)
-                ->get();
-        }
+        // Meeting vendor terikat booking_id milik klien (DP Terverifikasi / Lunas)
+        $upcomingVendorMeetings = $meetingService->upcomingForDashboard($user->id, 5);
+        $activeBookingMeetings = $pesananAktif
+            ? $meetingService->forBooking($pesananAktif)
+            : collect();
 
         // Next event (Pesanan) — used by Upcoming Schedule widget
         $nextEvent = Pesanan::where('user_id', $user->id)
@@ -103,6 +96,12 @@ class CustomerController extends Controller
 
         $deadlineBanner = null;
         if ($pesananAktif) {
+            $aktifInvoice = $pesananAktif->invoices()->latest()->first();
+            if ($aktifInvoice) {
+                $aktifInvoice->applyPaymentSchedule();
+                $aktifInvoice->save();
+                \App\Services\PaymentScheduleService::ensureDpJadwal($aktifInvoice);
+            }
             PaymentDeadlineService::syncFor($pesananAktif);
             $deadlineBanner = PaymentDeadlineService::customerBanner($pesananAktif);
         }
@@ -122,6 +121,7 @@ class CustomerController extends Controller
             'notifikasiChat' => $notifikasiChat,
             'pesananTerbaru' => $pesananTerbaru,
             'upcomingVendorMeetings' => $upcomingVendorMeetings,
+            'activeBookingMeetings' => $activeBookingMeetings,
             'nextEvent' => $nextEvent,
             'deadlineBanner' => $deadlineBanner,
             'pendingVendorReviews' => $pendingVendorReviews,
@@ -175,9 +175,7 @@ class CustomerController extends Controller
         BookingDynamicStatus::sync($pesanan);
         $pesanan->refresh();
 
-        $agendas = Schema::hasTable('vendor_meetings')
-            ? $pesanan->vendorMeetings()->orderBy('meeting_date', 'asc')->orderBy('meeting_time', 'asc')->get()
-            : collect();
+        $agendas = app(CustomerVendorMeetingService::class)->forBooking($pesanan);
 
         // ✅ Compute refund breakdown untuk display di view
         $refundBreakdown = $this->computeRefundBreakdown($pesanan);
@@ -243,12 +241,15 @@ class CustomerController extends Controller
             ->get();
 
         $primaryInvoice = CustomerPaymentPresenter::pickPrimaryInvoice($invoices, $pesananId);
-        $payment = $primaryInvoice ? CustomerPaymentPresenter::for($primaryInvoice) : null;
 
-        if ($primaryInvoice && ! $primaryInvoice->jatuh_tempo_dp) {
+        if ($primaryInvoice) {
             $primaryInvoice->applyPaymentSchedule();
             $primaryInvoice->save();
+            \App\Services\PaymentScheduleService::ensureDpJadwal($primaryInvoice);
+            $primaryInvoice->load('pembayaranJadwals');
         }
+
+        $payment = $primaryInvoice ? CustomerPaymentPresenter::for($primaryInvoice) : null;
 
         return view('customer.modules.pembayaran.index', [
             'activeMenu' => 'pembayaran',
@@ -291,8 +292,10 @@ class CustomerController extends Controller
             $request->integer('pesanan_id') ?: null
         );
 
+        $activeMenu = $request->input('section') === 'meetings' ? 'jadwal-meeting' : 'jadwal-rundown';
+
         return view('customer.modules.jadwal.index', array_merge([
-            'activeMenu' => 'jadwal-rundown',
+            'activeMenu' => $activeMenu,
         ], $data));
     }
 }

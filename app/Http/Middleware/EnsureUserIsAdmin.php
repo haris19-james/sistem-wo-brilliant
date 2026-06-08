@@ -10,9 +10,12 @@ class EnsureUserIsAdmin
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if (! $request->user() || $request->user()->role !== 'admin') {
-            return redirect()->route('admin.login')
-                ->withErrors(['email' => 'Silakan login sebagai admin untuk mengakses halaman ini.']);
+        if (! $request->user()) {
+            return redirect()->route('login');
+        }
+
+        if ($request->user()->role !== 'admin') {
+            abort(403, 'Unauthorized access to admin panel.');
         }
 
         return $next($request);

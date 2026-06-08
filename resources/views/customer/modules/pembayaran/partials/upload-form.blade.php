@@ -11,17 +11,43 @@
             @endforeach
         </div>
 
+        @if(!empty($payment['deadline']['next_due']))
+        <div class="bg-white rounded-2xl border border-bottle/20 p-4 text-sm shadow-sm">
+            <p class="font-semibold text-bottle">Jatuh Tempo Berikutnya</p>
+            <p class="text-gray-900 font-bold">{{ $payment['deadline']['label'] ?? 'Pembayaran' }}</p>
+            <p class="text-bottle font-bold mt-1">{{ \Carbon\Carbon::parse($payment['deadline']['next_due'])->translatedFormat('d F Y') }}</p>
+            @if($payment['deadline']['days_left'] !== null)
+            <p class="text-xs mt-1 {{ $payment['deadline']['days_left'] < 0 ? 'text-red-600 font-semibold' : 'text-gray-500' }}">
+                @if($payment['deadline']['days_left'] < 0)
+                    Terlambat {{ abs($payment['deadline']['days_left']) }} hari
+                @elseif($payment['deadline']['days_left'] === 0)
+                    Jatuh tempo hari ini
+                @else
+                    {{ $payment['deadline']['days_left'] }} hari lagi
+                @endif
+            </p>
+            @endif
+        </div>
+        @endif
         @if($jadwal['dp']['jatuh_tempo'])
         <div class="bg-white rounded-2xl border border-gray-100 p-4 text-sm shadow-sm">
             <p class="font-semibold text-amber-800">Batas DP</p>
             <p class="text-amber-900 font-bold">{{ $jadwal['dp']['jatuh_tempo']->format('d M Y') }}</p>
-            <p class="text-xs text-gray-500 mt-1">Minimal Rp {{ number_format($dpMinimum, 0, ',', '.') }}</p>
+            <p class="text-xs text-gray-500 mt-1">Minimal Rp {{ number_format($dpMinimum, 0, ',', '.') }} ({{ config('pembayaran.dp_persen', 20) }}%)</p>
         </div>
         @endif
+        @foreach($jadwal['cicilan'] ?? [] as $cicilan)
+        <div class="bg-white rounded-2xl border border-gray-100 p-4 text-sm shadow-sm">
+            <p class="font-semibold text-gray-800">{{ $cicilan['label'] }}</p>
+            <p class="text-gray-900 font-bold">{{ $cicilan['jatuh_tempo']->format('d M Y') }}</p>
+            <p class="text-xs text-gray-500 mt-1">Saran: Rp {{ number_format($cicilan['nominal_saran'], 0, ',', '.') }}</p>
+        </div>
+        @endforeach
         @if($jadwal['pelunasan']['jatuh_tempo'])
         <div class="bg-white rounded-2xl border border-gray-100 p-4 text-sm shadow-sm">
             <p class="font-semibold text-green-800">Batas Pelunasan</p>
             <p class="text-green-900 font-bold">{{ $jadwal['pelunasan']['jatuh_tempo']->format('d M Y') }}</p>
+            <p class="text-xs text-gray-500 mt-1">H-{{ config('pembayaran.pelunasan_hari_sebelum_acara', 30) }} dari tanggal acara</p>
         </div>
         @endif
     </div>
