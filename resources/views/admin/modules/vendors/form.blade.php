@@ -33,7 +33,9 @@
     </div>
     <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">Lokasi</label>
-        <input type="text" name="lokasi" value="{{ old('lokasi', $vendor->lokasi) }}" placeholder="Garut" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+        <input type="text" name="lokasi" value="{{ old('lokasi', $vendor->lokasi) }}" placeholder="Garut" maxlength="255" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+        <p class="text-xs text-gray-500 mt-1">Maksimal 255 karakter. Jika input terlalu panjang, sistem akan memotongnya otomatis agar tidak menimbulkan error.</p>
+        @error('lokasi')<p class="text-red-600 text-xs mt-1">{{ $message }}</p>@enderror
     </div>
     <div>
         <label class="block text-sm font-medium text-gray-700 mb-1">Info Harga</label>

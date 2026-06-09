@@ -171,10 +171,16 @@ class VendorController extends Controller
 
     private function validated(Request $request): array
     {
+        if ($request->has('lokasi')) {
+            $request->merge([
+                'lokasi' => mb_substr((string) $request->input('lokasi'), 0, 255),
+            ]);
+        }
+
         $data = $request->validate([
             'nama_vendor' => ['required', 'string', 'max:255'],
             'kategori' => ['required', 'string', 'max:100'],
-            'lokasi' => ['nullable', 'string', 'max:100'],
+            'lokasi' => ['nullable', 'string', 'max:255'],
             'harga_info' => ['nullable', 'string', 'max:100'],
             'kontak' => ['nullable', 'string', 'max:50'],
             'instagram' => ['nullable', 'string', 'max:255'],

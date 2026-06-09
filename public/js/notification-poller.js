@@ -14,18 +14,21 @@ class NotificationPoller {
         this.pollInterval = options.pollInterval || 5000; // 5 detik default
         this.pollUrl = options.pollUrl || '/api/notifications/poll';
         this.countUrl = options.countUrl || '/api/notifications/count';
-        this.markReadUrl = options.markReadUrl || (id) => `/api/notifications/${id}/read`;
-        this.deleteUrl = options.deleteUrl || (id) => `/api/notifications/${id}`;
+        this.markReadUrl = options.markReadUrl || ((id) => `/api/notifications/${id}/read`);
+        this.deleteUrl = options.deleteUrl || ((id) => `/api/notifications/${id}`);
         
         this.isPolling = false;
         this.pollTimer = null;
         this.lastPollTime = null;
-        this.notificationBadge = document.querySelector('[data-notification-badge]');
+        this.socketChannel = null;
+        this.notificationBadge = document.querySelector('[data-notification-badge]') || document.getElementById('notification-badge');
         this.notificationPanel = document.querySelector('[data-notification-panel]');
         this.notificationContainer = this.notificationPanel?.querySelector('[data-notification-list]');
         
         this.toastContainer = options.toastContainer || null;
         this.showUrgentSounds = options.showUrgentSounds || true;
+        this.knownNotificationIds = new Set();
+        this.hasCompletedInitialPoll = false;
     }
 
     /**
@@ -36,12 +39,64 @@ class NotificationPoller {
         
         this.isPolling = true;
         console.log('[NotificationPoller] Starting polling every ' + this.pollInterval + 'ms');
+
+        if (window.NotificationConfig?.usePusher) {
+            this.initPusher();
+            this.initRealtimeChannel();
+        }
         
         // Poll immediately on start
         this.poll();
         
         // Then poll at interval
         this.pollTimer = setInterval(() => this.poll(), this.pollInterval);
+    }
+
+    initPusher() {
+        try {
+            if (!window.Pusher || !window.NotificationConfig?.pusherKey || typeof Echo !== 'undefined') {
+                return;
+            }
+
+            window.Echo = new Echo({
+                broadcaster: 'pusher',
+                key: window.NotificationConfig.pusherKey,
+                cluster: window.NotificationConfig.pusherCluster || undefined,
+                forceTLS: true,
+                encrypted: true,
+                disableStats: true,
+            });
+
+            console.log('[NotificationPoller] Pusher/Echo initialized');
+        } catch (error) {
+            console.error('[NotificationPoller] Pusher init error:', error);
+        }
+    }
+
+    initRealtimeChannel() {
+        try {
+            if (!window.Echo || !window.NotificationConfig?.roleChannel) {
+                return;
+            }
+
+            this.socketChannel = window.Echo.channel(window.NotificationConfig.roleChannel);
+            this.socketChannel.listen(window.NotificationConfig.eventName || '.notification.received', (notification) => {
+                if (!notification || !notification.message) {
+                    return;
+                }
+
+                notification.is_urgent = notification.priority === 'urgent';
+                notification.created_at = notification.created_at || notification.timestamp || new Date().toISOString();
+                notification.link_redirect = notification.link_redirect || null;
+
+                this.handleNewNotification(notification);
+                this.updateBadgeCount((parseInt(this.notificationBadge?.textContent || '0', 10) || 0) + 1);
+            });
+
+            console.log('[NotificationPoller] Realtime channel initialized for', window.NotificationConfig.roleChannel);
+        } catch (error) {
+            console.error('[NotificationPoller] Realtime init error:', error);
+        }
     }
 
     /**
@@ -78,18 +133,25 @@ class NotificationPoller {
 
             const data = await response.json();
             
-            if (data.success && data.notifications && data.notifications.length > 0) {
-                console.log('[NotificationPoller] Received', data.notifications.length, 'new notifications');
-                
-                // Proses setiap notifikasi
-                data.notifications.forEach(notification => {
-                    this.handleNewNotification(notification);
+            if (data.success && Array.isArray(data.notifications)) {
+                data.notifications.forEach((notification) => {
+                    const isNew = !this.knownNotificationIds.has(notification.id);
+                    this.knownNotificationIds.add(notification.id);
+
+                    if (isNew && this.hasCompletedInitialPoll && !notification.is_read) {
+                        notification.is_urgent = notification.is_urgent || notification.priority === 'urgent';
+                        this.handleNewNotification(notification);
+                    }
                 });
+
+                this.hasCompletedInitialPoll = true;
             }
 
-            // Update badge count
             if (data.unread_count !== undefined) {
                 this.updateBadgeCount(data.unread_count);
+                window.dispatchEvent(new CustomEvent('notifications.count-updated', {
+                    detail: { unread_count: data.unread_count },
+                }));
             }
 
         } catch (error) {

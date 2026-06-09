@@ -74,7 +74,7 @@ class KorlapVendorService
     /**
      * Filter penugasan aktif pada relasi vendor ↔ pesanan (BelongsToMany).
      */
-    protected function constrainActiveAssignment(BelongsToMany $query, int $korlapId): BelongsToMany
+    protected function constrainActiveAssignment($query, int $korlapId)
     {
         return $query
             ->where('pesanans.korlap_id', $korlapId)

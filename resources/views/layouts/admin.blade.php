@@ -9,11 +9,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     @include('partials.brand-tailwind', ['extraColors' => ['grayBg' => '#F8FAFC', 'grayText' => '#64748B']])
+    <script src="{{ asset('js/notification-bell.js') }}?v=2"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
     <style>[x-cloak]{display:none!important}</style>
     @stack('head')
 </head>
-<body class="bg-grayBg font-sans antialiased text-gray-800 flex h-screen overflow-hidden" data-brilliant-panel="admin" x-data="{ sidebarOpen: false }">
+<body class="bg-grayBg font-sans antialiased text-gray-800 flex h-screen overflow-hidden" data-brilliant-panel="admin" data-notification-auto-poll data-poll-interval="15000" x-data="{ sidebarOpen: false }">
 
     <div x-show="sidebarOpen" class="fixed inset-0 z-40 bg-black/50 lg:hidden" @click="sidebarOpen = false" style="display:none;"></div>
 
@@ -136,6 +137,35 @@
     <script src="{{ asset('js/image-fallback.js') }}?v=1" defer></script>
     <script src="{{ asset('js/brilliant-nav-loading.js') }}?v=1" defer></script>
     <script src="{{ asset('js/page-nav.js') }}?v=2" defer></script>
+    @if(config('broadcasting.default') === 'pusher' && config('broadcasting.connections.pusher.key'))
+        <script src="https://js.pusher.com/8.0/pusher.min.js" defer></script>
+        <script src="https://cdn.jsdelivr.net/npm/laravel-echo@1.12.0/dist/echo.iife.js" defer></script>
+    @endif
+    <script>
+        window.NotificationConfig = {
+            pollUrl: '{{ route('api.notifications.poll') }}',
+            countUrl: '{{ route('api.notifications.count') }}',
+            readAllUrl: '{{ route('api.notifications.read-all') }}',
+            pollInterval: 15000,
+            roleChannel: 'notifications.{{ auth()->user()?->role ?? 'admin' }}',
+            eventName: '.notification.received',
+            usePusher: {{ config('broadcasting.default') === 'pusher' && config('broadcasting.connections.pusher.key') ? 'true' : 'false' }},
+            pusherKey: '{{ config('broadcasting.connections.pusher.key') }}',
+            pusherCluster: '{{ config('broadcasting.connections.pusher.options.cluster') }}',
+        };
+
+        if (window.NotificationConfig.usePusher && window.Pusher && typeof Echo !== 'undefined') {
+            window.Echo = new Echo({
+                broadcaster: 'pusher',
+                key: window.NotificationConfig.pusherKey,
+                cluster: window.NotificationConfig.pusherCluster,
+                forceTLS: true,
+                encrypted: true,
+                disableStats: true,
+            });
+        }
+    </script>
+    <script src="{{ asset('js/notification-poller.js') }}" defer></script>
     @vite(['resources/js/app.jsx'])
     @stack('scripts')
 </body>

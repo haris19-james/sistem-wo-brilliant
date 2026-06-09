@@ -57,26 +57,30 @@
         </div>
     </div>
 
+    @if($status === 'in_progress' && !empty($task->alasan_penolakan))
+    <div class="mt-3 p-3 bg-red-50 border border-red-100 rounded-lg text-xs">
+        <p class="font-bold text-red-800 mb-1">Ditolak oleh Admin:</p>
+        <p class="text-red-700">{{ $task->alasan_penolakan }}</p>
+    </div>
+    @endif
+
     @if($status !== 'completed')
     <div class="mt-3 flex flex-wrap items-center gap-2">
         <select class="task-status-select text-xs px-2 py-1.5 border border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
             data-task-id="{{ $task->id }}" data-prev-status="{{ $status }}">
             <option value="pending" @selected($status === 'pending')>Belum Dikerjakan</option>
             <option value="in_progress" @selected($status === 'in_progress')>Sedang Dikerjakan</option>
-            @if($status === 'awaiting_verification')
-            <option value="awaiting_verification" selected>Menunggu Verifikasi</option>
-            @endif
         </select>
 
-        @if($status === 'awaiting_verification')
-        <button type="button" class="btn-verify-task px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition"
-            data-task-id="{{ $task->id }}">
-            Verifikasi Selesai
+        @if($status === 'in_progress')
+        <button type="button" class="px-3 py-1.5 bg-bottle hover:bg-bottleHover text-white text-xs font-semibold rounded-lg transition"
+            onclick="openUploadModal('{{ $task->id }}')">
+            Kirim Laporan
         </button>
         @endif
     </div>
     @else
-    <p class="mt-2 text-[10px] text-green-600">✓ Diverifikasi Korlap {{ $task->korlap_verified_at?->format('d M Y H:i') }}</p>
+    <p class="mt-2 text-[10px] text-green-600">✓ Selesai</p>
     @endif
 
     <div class="mt-3 flex items-center justify-between gap-2 border-t border-gray-50 pt-2">

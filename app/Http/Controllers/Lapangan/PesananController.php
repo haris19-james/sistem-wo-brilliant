@@ -169,19 +169,7 @@ class PesananController extends Controller
         $progress->fill($validated);
         $progress->save();
 
-        if ($request->filled('persentase')) {
-            $progress->update(['persentase' => $validated['persentase']]);
-        } else {
-            $progress->update([
-                'persentase' => ProgressPersiapan::hitungProgressDariStatus([
-                    'venue' => $progress->status_venue,
-                    'makeup' => $progress->status_makeup,
-                    'catering' => $progress->status_catering,
-                    'dekorasi' => $progress->status_dekorasi,
-                    'dokumentasi' => $progress->status_dokumentasi,
-                ]),
-            ]);
-        }
+        // Removed persentase update logic, since persentase is now calculated by Tugas booted event.
 
         if ($pesanan->status === 'Menunggu' && $progress->persentase >= 10) {
             $pesanan->update(['status' => 'Sedang Berlangsung']);

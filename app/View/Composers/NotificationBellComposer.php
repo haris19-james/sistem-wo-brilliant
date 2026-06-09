@@ -45,7 +45,8 @@ class NotificationBellComposer
 
         $view->with([
             'bellUnreadCount' => $this->notifications->unreadCount($user),
-            'bellNotifications' => $this->notifications->latestForUser($user, 12),
+            'bellNotifications' => $this->notifications->latestForUser($user, 10)
+                ->map(fn (UserNotification $n) => $n->toBellArray()),
         ]);
     }
 }

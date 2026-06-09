@@ -139,7 +139,7 @@ class TugasController extends Controller
                     : back()->withInput()->withErrors(['vendor_id' => $message]);
             }
 
-            $deadline = $this->parseDeadline($validated['deadline_date'], $validated['deadline_time'], $pesanan);
+            $deadline = $this->parseDeadline(null, null, $pesanan);
 
             $tugas = Tugas::create([
                 'user_id' => auth()->id(),
@@ -232,7 +232,7 @@ class TugasController extends Controller
         $this->authorizePesanan($pesanan);
         $this->assertVendorOnPesanan($pesanan, (int) $validated['vendor_id']);
 
-        $deadline = $this->parseDeadline($validated['deadline_date'], $validated['deadline_time'], $pesanan);
+        $deadline = $this->parseDeadline(null, null, $pesanan);
 
         $tugas->update([
             'pesanan_id' => $validated['pesanan_id'],
@@ -326,6 +326,30 @@ class TugasController extends Controller
         ]);
     }
 
+    public function uploadLaporan(Request $request, Tugas $tugas)
+    {
+        $this->authorize('update', $tugas);
+
+        if ($tugas->pesanan && PaymentDeadlineService::isKorlapFrozen($tugas->pesanan)) {
+            return back()->with('error', 'Akses dibekukan.');
+        }
+
+        $request->validate([
+            'foto_bukti' => 'required|image|max:5120',
+        ]);
+
+        if ($request->hasFile('foto_bukti')) {
+            $path = $request->file('foto_bukti')->store('tugas-bukti', 'public');
+            
+            $tugas->update([
+                'foto_bukti' => $path,
+                'status' => 'awaiting_verification', // Using awaiting_verification which means pending_verification in user request
+            ]);
+        }
+
+        return back()->with('success', 'Laporan berhasil dikirim dan menunggu verifikasi admin.');
+    }
+
     public function updateChecklist(Request $request, Tugas $tugas, TaskChecklist $checklist): JsonResponse
     {
         $this->authorize('update', $tugas);
@@ -401,8 +425,6 @@ class TugasController extends Controller
             'vendor_id' => 'required|exists:vendors,id',
             'kategori' => 'required|string',
             'prioritas' => 'required|in:high,medium,low',
-            'deadline_date' => 'required|date',
-            'deadline_time' => 'required',
             'pic_id' => 'required|exists:users,id',
             'checklists_text' => 'array|nullable',
             'checklists_completed' => 'array|nullable',
@@ -431,19 +453,14 @@ class TugasController extends Controller
         }
     }
 
-    protected function parseDeadline(string $date, string $time, Pesanan $pesanan): Carbon
+    protected function parseDeadline(?string $date, ?string $time, Pesanan $pesanan): Carbon
     {
-        try {
-            return Carbon::createFromFormat('Y-m-d H:i', $date.' '.$time);
-        } catch (\Throwable) {
-            if ($pesanan->tanggal_acara) {
-                $jam = $pesanan->jam_acara ? substr((string) $pesanan->jam_acara, 0, 5) : '12:00';
-
-                return Carbon::parse($pesanan->tanggal_acara->format('Y-m-d').' '.$jam);
-            }
-
-            return now()->addDay();
+        if ($pesanan->tanggal_acara) {
+            // Force deadline to H-1 of the event date at 23:59:59
+            return Carbon::parse($pesanan->tanggal_acara->format('Y-m-d'))->subDay()->endOfDay();
         }
+
+        return now()->addDay()->endOfDay();
     }
 
     protected function syncChecklists(Request $request, Tugas $tugas): void

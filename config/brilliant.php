@@ -23,6 +23,9 @@ return [
     'leaf_bg' => '#D4F9DC',
     'ink' => '#111111',
     'gray_box' => '#F8FAFC',
+    'golden' => '#D4A017',
+    'golden_hover' => '#F0C040',
+    'golden_soft' => '#FFF8E6',
   ],
 
   /*

@@ -89,7 +89,9 @@ class PesananController extends Controller
     {
         $load = ['user', 'paket', 'korlap', 'invoices', 'progress', 'rundowns', 'laporanLapangans.user', 'vendors', 'tugas.vendor', 'tugas.pic', 'tugas.checklists'];
         if (Schema::hasTable('item_tambahan')) {
-            $load[] = 'itemTambahan.invoice';
+            $load['itemTambahan'] = function ($query) {
+                $query->with('invoice')->orderByDesc('created_at');
+            };
         } elseif (Schema::hasTable('booking_addons')) {
             $load[] = 'bookingAddons.invoice';
         }
@@ -445,6 +447,7 @@ class PesananController extends Controller
         $tugas->update([
             'status' => 'completed',
             'korlap_verified_at' => now(),
+            'alasan_penolakan' => null, // Reset if previously rejected
         ]);
 
         if ($tugas->vendor) {
@@ -482,6 +485,39 @@ class PesananController extends Controller
         return redirect()->back()->with('success', $message);
     }
 
+    public function rejectTask(Request $request, Pesanan $pesanan, Tugas $tugas)
+    {
+        if ($tugas->pesanan_id !== $pesanan->id) {
+            abort(404);
+        }
+
+        if ($tugas->status !== 'awaiting_verification') {
+            return redirect()->back()->with('warning', 'Tugas tidak dalam status menunggu verifikasi.');
+        }
+
+        $validated = $request->validate([
+            'alasan_penolakan' => 'required|string|max:1000',
+        ]);
+
+        $tugas->update([
+            'status' => 'in_progress',
+            'alasan_penolakan' => $validated['alasan_penolakan'],
+        ]);
+
+        // Notify Korlap that task was rejected
+        if ($pesanan->korlap_id) {
+            app(NotificationCenterService::class)->notifyKorlapForPesanan(
+                $pesanan,
+                "Laporan tugas ditolak: {$tugas->nama_tugas}. Alasan: {$validated['alasan_penolakan']}",
+                route('lapangan.tugas.index', ['pesanan_id' => $pesanan->id]),
+                'urgent',
+                'task'
+            );
+        }
+
+        return redirect()->back()->with('success', 'Tugas dikembalikan ke tim lapangan (Vendor) dengan alasan penolakan.');
+    }
+
     public function forceFinishTask(Request $request, Pesanan $pesanan, Tugas $tugas, VendorFieldTaskService $taskService)
     {
         if ($tugas->pesanan_id !== $pesanan->id) {
@@ -495,6 +531,7 @@ class PesananController extends Controller
         $tugas->update([
             'status' => 'completed',
             'korlap_verified_at' => now(),
+            'alasan_penolakan' => null, // Reset if previously rejected
         ]);
 
         if ($tugas->vendor) {
@@ -611,6 +648,8 @@ class PesananController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
+        app(NotificationCenterService::class)->itemTambahanApprovedForCustomer($pesanan, $itemTambahan);
+
         return back()->with('success', 'Item tambahan disetujui. Tagihan telah ditambahkan ke invoice pesanan.');
     }
 
@@ -629,6 +668,8 @@ class PesananController extends Controller
         } catch (\InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage());
         }
+
+        app(NotificationCenterService::class)->itemTambahanRejectedForCustomer($pesanan, $itemTambahan);
 
         return back()->with('success', 'Pengajuan item tambahan ditolak.');
     }

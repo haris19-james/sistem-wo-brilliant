@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\ProgressPersiapan;
 
 class Tugas extends Model
 {
@@ -22,6 +23,8 @@ class Tugas extends Model
         'deadline',
         'catatan',
         'status',
+        'foto_bukti',
+        'alasan_penolakan',
         'is_auto_generated',
         'korlap_verified_at',
     ];
@@ -33,6 +36,40 @@ class Tugas extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    protected static function booted()
+    {
+        static::saved(function ($tugas) {
+            $tugas->updatePesananProgress();
+        });
+
+        static::deleted(function ($tugas) {
+            $tugas->updatePesananProgress();
+        });
+    }
+
+    public function updatePesananProgress()
+    {
+        $pesanan = $this->pesanan;
+        if (!$pesanan) return;
+
+        $totalTugas = $pesanan->tugas()->count();
+        if ($totalTugas === 0) {
+            ProgressPersiapan::updateOrCreate(
+                ['pesanan_id' => $pesanan->id],
+                ['persentase' => 0]
+            );
+            return;
+        }
+
+        $completedTugas = $pesanan->tugas()->where('status', 'completed')->count();
+        $persentase = (int) round(($completedTugas / $totalTugas) * 100);
+
+        ProgressPersiapan::updateOrCreate(
+            ['pesanan_id' => $pesanan->id],
+            ['persentase' => $persentase]
+        );
+    }
 
     public function pesanan(): BelongsTo
     {

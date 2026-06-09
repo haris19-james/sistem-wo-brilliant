@@ -8,6 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     @include('partials.brand-tailwind', ['extraColors' => ['grayBg' => '#F8FAFC', 'grayText' => '#64748B']])
+    <script src="{{ asset('js/notification-bell.js') }}?v=2"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
     <style>[x-cloak]{display:none!important}</style>
     @stack('head')
@@ -40,6 +41,10 @@
             <a href="{{ route('client.pesanan') }}" class="{{ $navClass('pesanan') }}">
                 <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                 Pesanan Saya
+            </a>
+            <a href="{{ route('client.vendor-ratings.index') }}" class="{{ $navClass('vendor-ratings') }}">
+                <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+                Vendor Ratings
             </a>
             <x-sidebar.jadwal-acara-nav
                 panel="client"
@@ -135,6 +140,33 @@
     @include('components.page-nav-skeleton')
     <script src="{{ asset('js/brilliant-nav-loading.js') }}?v=3" defer></script>
     <script src="{{ asset('js/page-nav.js') }}?v=2" defer></script>
+    @if(config('broadcasting.default') === 'pusher' && config('broadcasting.connections.pusher.key'))
+        <script src="https://js.pusher.com/8.0/pusher.min.js" defer></script>
+        <script src="https://cdn.jsdelivr.net/npm/laravel-echo@1.12.0/dist/echo.iife.js" defer></script>
+    @endif
+    <script>
+        window.NotificationConfig = {
+            pollUrl: '{{ route('api.notifications.poll') }}',
+            countUrl: '{{ route('api.notifications.count') }}',
+            roleChannel: 'notifications.{{ auth()->user()?->role ?? 'client' }}',
+            eventName: '.notification.received',
+            usePusher: {{ config('broadcasting.default') === 'pusher' && config('broadcasting.connections.pusher.key') ? 'true' : 'false' }},
+            pusherKey: '{{ config('broadcasting.connections.pusher.key') }}',
+            pusherCluster: '{{ config('broadcasting.connections.pusher.options.cluster') }}',
+        };
+
+        if (window.NotificationConfig.usePusher && window.Pusher && typeof Echo !== 'undefined') {
+            window.Echo = new Echo({
+                broadcaster: 'pusher',
+                key: window.NotificationConfig.pusherKey,
+                cluster: window.NotificationConfig.pusherCluster,
+                forceTLS: true,
+                encrypted: true,
+                disableStats: true,
+            });
+        }
+    </script>
+    <script src="{{ asset('js/notification-poller.js') }}" defer></script>
     @stack('scripts')
 </body>
 </html>

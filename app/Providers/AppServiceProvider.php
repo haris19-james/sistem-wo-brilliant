@@ -45,7 +45,14 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer(['layouts.client', 'layouts.customer', 'layouts.lapangan'], SidebarJadwalNavComposer::class);
         View::composer(['layouts.client', 'layouts.customer'], CustomerChatNavComposer::class);
-        View::composer(['layouts.admin', 'layouts.lapangan', 'layouts.client', 'layouts.customer'], NotificationBellComposer::class);
+        View::composer([
+            'layouts.admin',
+            'layouts.lapangan',
+            'layouts.client',
+            'layouts.customer',
+            'components.notification-bell',
+            'components.dashboard-header',
+        ], NotificationBellComposer::class);
 
         Route::bind('addon', fn (string $value) => ItemTambahan::findOrFail($value));
         // Register dashboard header component for simple tag usage <x-dashboard-header />

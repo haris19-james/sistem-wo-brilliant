@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\ItemTambahan;
 use App\Models\Pesanan;
 use App\Models\User;
 use App\Models\UserNotification;
+use App\Notifications\DatabaseUserNotification;
 use Illuminate\Support\Collection;
 
 class NotificationCenterService
@@ -28,10 +30,47 @@ class NotificationCenterService
             'category' => $category,
         ]);
 
+        try {
+            broadcast(new \App\Events\NotificationBroadcast(
+                'notification_created',
+                [$userModel->role],
+                $message,
+                null,
+                $category ?? 'general',
+                $priority,
+                $linkRedirect,
+                ['notification_id' => $notification->id]
+            ));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Failed to broadcast notification', [
+                'user_id' => $userModel->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         if ($priority === 'urgent' && auth()->id() === $userModel->id) {
             session()->flash('urgent_toast', [
                 'message' => $message,
                 'type' => 'urgent',
+            ]);
+        }
+
+        try {
+            $userModel->notify(new DatabaseUserNotification(
+                $message,
+                $linkRedirect,
+                $category,
+                $priority,
+                [
+                    'reference_type' => $category,
+                    'reference_id' => $notification->id,
+                ]
+            ));
+        } catch (\Throwable $e) {
+            // If database notifications are unavailable, proceed with custom notification storage only.
+            \Illuminate\Support\Facades\Log::warning('Failed to persist standard database notification', [
+                'user_id' => $userModel->id,
+                'error' => $e->getMessage(),
             ]);
         }
 
@@ -222,6 +261,53 @@ class NotificationCenterService
         );
     }
 
+    public function itemTambahanRequestedForAdmins(Pesanan $pesanan, ItemTambahan $item): void
+    {
+        $this->triggerNotification(
+            'item_tambahan_requested',
+            'admin',
+            "Klien menambahkan item tambahan: {$item->kategori} — {$item->deskripsi} ({$pesanan->nomor_pesanan}).",
+            $pesanan,
+            route('admin.booking.show', $pesanan->id),
+            'normal',
+            ['item_tambahan_id' => $item->id]
+        );
+    }
+
+    public function itemTambahanApprovedForCustomer(Pesanan $pesanan, ItemTambahan $item): void
+    {
+        if (! $pesanan->user_id) {
+            return;
+        }
+
+        $this->triggerNotification(
+            'item_tambahan_approved',
+            'client',
+            "Item tambahan Anda disetujui: {$item->kategori} — {$item->deskripsi}. Total tagihan telah diperbarui.",
+            $pesanan,
+            route('client.pesanan_detail', $pesanan->id),
+            'normal',
+            ['item_tambahan_id' => $item->id]
+        );
+    }
+
+    public function itemTambahanRejectedForCustomer(Pesanan $pesanan, ItemTambahan $item): void
+    {
+        if (! $pesanan->user_id) {
+            return;
+        }
+
+        $this->triggerNotification(
+            'item_tambahan_rejected',
+            'client',
+            "Pengajuan item tambahan ditolak: {$item->kategori} — {$item->deskripsi}.",
+            $pesanan,
+            route('client.pesanan_detail', $pesanan->id),
+            'normal',
+            ['item_tambahan_id' => $item->id]
+        );
+    }
+
     public function rundownChangedForKorlap(Pesanan $pesanan, string $label = 'diperbarui'): void
     {
         $this->notifyKorlapForPesanan(
@@ -336,7 +422,7 @@ class NotificationCenterService
         }
 
         // Broadcast untuk real-time update
-        $this->broadcastNotification($eventType, $roles, $message, $pesanan, $metadata);
+        $this->broadcastNotification($eventType, $roles, $message, $pesanan, $metadata, $category, $priority, $linkRedirect);
     }
 
     /**
@@ -369,6 +455,7 @@ class NotificationCenterService
             'payment_approved', 'payment_rejected', 'payment_submitted' => 'payment',
             'chat_new', 'chat_response' => 'chat',
             'vendor_checkin', 'vendor_checkout', 'vendor_late' => 'vendor',
+            'item_tambahan_requested', 'item_tambahan_approved', 'item_tambahan_rejected' => 'payment',
             'task_created', 'task_completed' => 'task',
             'issue_reported', 'kendala_lapangan' => 'issue',
             'rundown_changed' => 'rundown',
@@ -384,13 +471,19 @@ class NotificationCenterService
         array $roles,
         string $message,
         ?Pesanan $pesanan,
-        array $metadata
+        array $metadata,
+        string $category = 'general',
+        string $priority = 'normal',
+        ?string $linkRedirect = null
     ): void {
         // Data untuk broadcast
         $broadcastData = [
             'event_type' => $eventType,
             'roles' => $roles,
             'message' => $message,
+            'category' => $category,
+            'priority' => $priority,
+            'link_redirect' => $linkRedirect,
             'booking_id' => $pesanan?->id,
             'nomor_pesanan' => $pesanan?->nomor_pesanan,
             'timestamp' => now()->toIso8601String(),
@@ -400,8 +493,17 @@ class NotificationCenterService
         // Simpan ke cache untuk polling system
         $this->cacheNotificationEvent($broadcastData);
 
-        // TODO: Uncomment jika sudah setup Pusher/Socket.io
-        // broadcast(new \App\Events\NotificationBroadcast($eventType, $roles, $message, $pesanan));
+        // Broadcast event untuk WebSocket / Pusher
+        broadcast(new \App\Events\NotificationBroadcast(
+            $eventType,
+            $roles,
+            $message,
+            $pesanan,
+            $category,
+            $priority,
+            $linkRedirect,
+            $metadata
+        ));
     }
 
     /**
@@ -511,9 +613,18 @@ class NotificationCenterService
                 }
             }
 
-            // Broadcast untuk real-time polling
+            // Broadcast untuk real-time polling dan websocket
             if (!empty($createdNotifications)) {
-                $this->broadcastNotification($eventType, $targetRoles, $message, $pesanan, $metadata ?? []);
+                $this->broadcastNotification(
+                    $eventType,
+                    $targetRoles,
+                    $message,
+                    $pesanan,
+                    $metadata ?? [],
+                    $category,
+                    $priority,
+                    $linkRedirect
+                );
             }
 
             return [

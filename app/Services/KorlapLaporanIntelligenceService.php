@@ -381,14 +381,13 @@ class KorlapLaporanIntelligenceService
             return 0;
         }
 
-        $unpaidPesanan = Pesanan::query()
-            ->whereIn('id', $pesananIds)
-            ->whereIn('status_pembayaran', ['unpaid', 'dp_paid'])
-            ->pluck('id');
+        if (! \Illuminate\Support\Facades\Schema::hasTable('vendor_anggarans')) {
+            return 0;
+        }
 
-        return (int) DB::table('pesanan_vendor')
-            ->whereIn('pesanan_id', $unpaidPesanan)
-            ->distinct('vendor_id')
+        return (int) \App\Models\VendorAnggaran::query()
+            ->whereIn('pesanan_id', $pesananIds)
+            ->whereIn('status_pembayaran', ['menunggu', 'dibayar'])
             ->count('vendor_id');
     }
 

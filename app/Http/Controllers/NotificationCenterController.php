@@ -18,15 +18,12 @@ class NotificationCenterController extends Controller
     {
         $user = Auth::user();
 
-        $items = $this->notifications->latestForUser($user, 20)->map(fn (UserNotification $n) => [
-            'id' => $n->id,
-            'message' => $n->message,
-            'is_read' => $n->is_read,
-            'link_redirect' => $n->link_redirect,
-            'priority' => $n->priority,
-            'category' => $n->category,
-            'time' => $n->created_at->diffForHumans(),
-        ]);
+        $items = UserNotification::query()
+            ->where('user_id', $user->id)
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get()
+            ->map(fn (UserNotification $n) => $n->toBellArray());
 
         return response()->json([
             'unread_count' => $this->notifications->unreadCount($user),

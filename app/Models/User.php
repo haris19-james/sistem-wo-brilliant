@@ -46,16 +46,16 @@ class User extends Authenticatable
      */
     public function getAvatarUrlAttribute(): string
     {
-        if ($this->avatar_url) {
-            return asset('storage/' . $this->avatar_url);
+        $avatar = $this->attributes['avatar_url'] ?? null;
+        if ($avatar) {
+            return asset('storage/' . $avatar);
         }
 
         // Generate placeholder avatar with initials
-        $initials = collect(explode(' ', $this->name))
+        $initials = strtoupper(collect(explode(' ', $this->name))
             ->map(fn($word) => substr($word, 0, 1))
             ->take(2)
-            ->implode('')
-            ->toUpper();
+            ->implode(''));
 
         return sprintf(
             'https://ui-avatars.com/api/?name=%s&background=00A32A&color=fff&size=128&bold=true&rounded=true',

@@ -46,6 +46,25 @@ class VendorKeuanganController extends Controller
             });
         }
 
+        if ($request->filled('month')) {
+            $query->whereMonth('tanggal_acara', $request->month);
+            if ($request->filled('year')) {
+                $query->whereYear('tanggal_acara', $request->year);
+            } else {
+                $query->whereYear('tanggal_acara', date('Y'));
+            }
+        }
+
+        // Calculate Totals based on filtered query
+        $filteredPesananIds = clone $query;
+        $pesananIds = $filteredPesananIds->pluck('id');
+        
+        $totalAlokasi = VendorAnggaran::whereIn('pesanan_id', $pesananIds)->sum('total_biaya');
+        $totalDibayar = VendorAnggaran::whereIn('pesanan_id', $pesananIds)
+            ->whereIn('status_pembayaran', ['lunas', 'dibayar'])
+            ->sum('total_biaya');
+        $sisaKewajiban = $totalAlokasi - $totalDibayar;
+
         $pesanans = $query->paginate(15)->withQueryString();
 
         $pesanans->getCollection()->transform(function (Pesanan $p) {
@@ -58,7 +77,10 @@ class VendorKeuanganController extends Controller
         return view('admin.modules.vendor-keuangan.index', [
             'activeMenu' => 'vendor-keuangan',
             'pesanans' => $pesanans,
-            'filters' => $request->only(['q']),
+            'filters' => $request->only(['q', 'month', 'year']),
+            'totalAlokasi' => $totalAlokasi,
+            'totalDibayar' => $totalDibayar,
+            'sisaKewajiban' => $sisaKewajiban,
         ]);
     }
 
@@ -108,7 +130,7 @@ class VendorKeuanganController extends Controller
             'pesanan_id' => $pesanan->id,
         ]);
 
-        VendorAnggaran::create([
+        $anggaran = VendorAnggaran::create([
             'pesanan_id' => $pesanan->id,
             'vendor_id' => $validated['vendor_id'],
             'total_biaya' => $validated['total_biaya'],
@@ -116,6 +138,13 @@ class VendorKeuanganController extends Controller
             'status_pembayaran' => 'menunggu',
             'allocated_by' => auth()->id(),
         ]);
+
+        if ($pesanan->korlap_id) {
+            \App\Support\AdminPerformanceCache::forgetKorlapMetrics(
+                $pesanan->korlap_id,
+                $pesanan->id
+            );
+        }
 
         return back()->with('success', 'Anggaran vendor berhasil ditambahkan.');
     }
@@ -137,13 +166,26 @@ class VendorKeuanganController extends Controller
             'rincian_biaya' => $validated['rincian_biaya'] ?? null,
         ]);
 
+        if ($pesanan->korlap_id) {
+            \App\Support\AdminPerformanceCache::forgetKorlapMetrics(
+                $pesanan->korlap_id,
+                $pesanan->id
+            );
+        }
+
         return back()->with('success', 'Rincian anggaran vendor diperbarui.');
     }
 
     public function destroy(VendorAnggaran $anggaran): RedirectResponse
     {
         $pesananId = $anggaran->pesanan_id;
+        $korlapId = $anggaran->pesanan->korlap_id ?? null;
+        
         $anggaran->delete();
+
+        if ($korlapId) {
+            \App\Support\AdminPerformanceCache::forgetKorlapMetrics($korlapId, $pesananId);
+        }
 
         return redirect()
             ->route('admin.vendor-keuangan.show', $pesananId)
@@ -163,6 +205,13 @@ class VendorKeuanganController extends Controller
             'dibayar' => 'Dibayar',
             default => 'Menunggu',
         };
+
+        if ($anggaran->pesanan && $anggaran->pesanan->korlap_id) {
+            \App\Support\AdminPerformanceCache::forgetKorlapMetrics(
+                $anggaran->pesanan->korlap_id,
+                $anggaran->pesanan->id
+            );
+        }
 
         return back()->with('success', 'Status pembayaran vendor diubah menjadi '.$label.'. Dashboard lapangan akan tersinkron otomatis.');
     }

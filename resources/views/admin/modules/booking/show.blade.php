@@ -164,10 +164,7 @@
                                 @endif
                                 <div class="mt-4 flex flex-wrap gap-2">
                                     @if($tugas->status === 'awaiting_verification')
-                                        <form method="POST" action="{{ route('admin.booking.tugas.verify', [$pesanan, $tugas]) }}" class="inline">
-                                            @csrf
-                                            <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-bottle text-white text-sm font-semibold hover:bg-bottleHover transition">Verifikasi Tugas</button>
-                                        </form>
+                                        <button type="button" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-bottle text-white text-sm font-semibold hover:bg-bottleHover transition" onclick="document.getElementById('verify-modal-{{ $tugas->id }}').classList.remove('hidden')">Lihat Bukti & Verifikasi</button>
                                     @endif
                                     @if(! in_array($tugas->status, ['completed', 'cancelled'], true))
                                         <form method="POST" action="{{ route('admin.booking.tugas.force_finish', [$pesanan, $tugas]) }}" class="inline" onsubmit="return confirm('Tandai tugas ini selesai secara paksa?');">
@@ -176,6 +173,42 @@
                                         </form>
                                     @endif
                                 </div>
+                                
+                                @if($tugas->status === 'awaiting_verification')
+                                <!-- Modal Verifikasi Tugas -->
+                                <div id="verify-modal-{{ $tugas->id }}" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+                                    <div class="w-full max-w-lg bg-white rounded-2xl p-6 shadow-xl relative max-h-[90vh] overflow-y-auto">
+                                        <button type="button" onclick="document.getElementById('verify-modal-{{ $tugas->id }}').classList.add('hidden')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">✕</button>
+                                        <h3 class="font-bold text-lg text-gray-900 mb-4">Verifikasi Tugas: {{ $tugas->nama_tugas }}</h3>
+                                        
+                                        @if($tugas->foto_bukti)
+                                        <div class="mb-4">
+                                            <p class="text-sm font-semibold text-gray-700 mb-2">Foto Bukti:</p>
+                                            <img src="{{ Storage::url($tugas->foto_bukti) }}" alt="Bukti" class="w-full h-auto rounded-lg border border-gray-200">
+                                        </div>
+                                        @else
+                                        <div class="mb-4 p-4 bg-yellow-50 text-yellow-800 text-sm rounded-lg border border-yellow-200">
+                                            Tugas ini belum memiliki foto bukti yang diunggah.
+                                        </div>
+                                        @endif
+
+                                        <div class="flex gap-2 border-t border-gray-100 pt-4 mt-4">
+                                            <form method="POST" action="{{ route('admin.booking.tugas.verify', [$pesanan, $tugas]) }}" class="flex-1">
+                                                @csrf
+                                                <button type="submit" class="w-full py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition">Approve</button>
+                                            </form>
+                                            <button type="button" onclick="document.getElementById('reject-form-{{ $tugas->id }}').classList.toggle('hidden')" class="flex-1 py-2 bg-red-100 text-red-700 hover:bg-red-200 font-semibold rounded-lg transition">Reject</button>
+                                        </div>
+
+                                        <form id="reject-form-{{ $tugas->id }}" method="POST" action="{{ route('admin.booking.tugas.reject', [$pesanan, $tugas]) }}" class="hidden mt-4 p-4 bg-red-50 border border-red-100 rounded-lg">
+                                            @csrf
+                                            <label class="block text-sm font-semibold text-red-800 mb-1">Alasan Penolakan</label>
+                                            <textarea name="alasan_penolakan" rows="2" required class="w-full px-3 py-2 border border-red-200 rounded-lg text-sm focus:outline-none focus:border-red-500" placeholder="Jelaskan mengapa laporan ditolak..."></textarea>
+                                            <button type="submit" class="mt-2 w-full py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition">Konfirmasi Penolakan</button>
+                                        </form>
+                                    </div>
+                                </div>
+                                @endif
                             </div>
                         @endforeach
                     </div>

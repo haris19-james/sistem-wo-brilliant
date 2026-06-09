@@ -199,7 +199,7 @@
             <!-- Right -->
             <div class="flex items-center space-x-6">
                 <!-- Notification Dropdown -->
-                @include('components.notification-dropdown')
+                <x-notification-bell />
 
                 <div class="w-px h-6 bg-gray-200"></div>
 
@@ -750,3 +750,4 @@
 
 </body>
 </html>
+

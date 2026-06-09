@@ -14,6 +14,7 @@
         'grayText' => '#64748B',
     ]])
     <link rel="stylesheet" href="{{ asset('css/lapangan-panel.css') }}">
+    <script src="{{ asset('js/notification-bell.js') }}?v=2"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
     <style>[x-cloak]{display:none!important}</style>
     @stack('head')
@@ -147,6 +148,33 @@
 
 @include('components.page-nav-skeleton')
 <script src="{{ asset('js/page-nav.js') }}" defer></script>
+@if(config('broadcasting.default') === 'pusher' && config('broadcasting.connections.pusher.key'))
+    <script src="https://js.pusher.com/8.0/pusher.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/laravel-echo@1.12.0/dist/echo.iife.js" defer></script>
+@endif
+<script>
+    window.NotificationConfig = {
+        pollUrl: '{{ route('api.notifications.poll') }}',
+        countUrl: '{{ route('api.notifications.count') }}',
+        roleChannel: 'notifications.{{ auth()->user()?->role ?? 'lapangan' }}',
+        eventName: '.notification.received',
+        usePusher: {{ config('broadcasting.default') === 'pusher' && config('broadcasting.connections.pusher.key') ? 'true' : 'false' }},
+        pusherKey: '{{ config('broadcasting.connections.pusher.key') }}',
+        pusherCluster: '{{ config('broadcasting.connections.pusher.options.cluster') }}',
+    };
+
+    if (window.NotificationConfig.usePusher && window.Pusher && typeof Echo !== 'undefined') {
+        window.Echo = new Echo({
+            broadcaster: 'pusher',
+            key: window.NotificationConfig.pusherKey,
+            cluster: window.NotificationConfig.pusherCluster,
+            forceTLS: true,
+            encrypted: true,
+            disableStats: true,
+        });
+    }
+</script>
+<script src="{{ asset('js/notification-poller.js') }}" defer></script>
 @stack('scripts')
 </body>
 </html>

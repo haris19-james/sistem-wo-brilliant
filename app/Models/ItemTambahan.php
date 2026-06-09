@@ -23,6 +23,8 @@ class ItemTambahan extends Model
         'injected_progress_at',
     ];
 
+    protected $appends = ['booking_id'];
+
     protected function casts(): array
     {
         return [
@@ -37,6 +39,11 @@ class ItemTambahan extends Model
     public function pesanan(): BelongsTo
     {
         return $this->belongsTo(Pesanan::class);
+    }
+
+    public function getBookingIdAttribute(): ?int
+    {
+        return $this->pesanan_id;
     }
 
     public function invoice(): BelongsTo

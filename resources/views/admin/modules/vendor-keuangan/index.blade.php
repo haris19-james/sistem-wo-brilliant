@@ -12,11 +12,62 @@
 <div class="mb-6 p-4 bg-red-50 border border-red-200 text-red-800 rounded-xl text-sm">{{ session('error') }}</div>
 @endif
 
+<!-- Summary Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+    <!-- Card 1: Total Alokasi Vendor -->
+    <div class="bg-white rounded-2xl border border-blue-100 shadow-sm p-5 relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-full -mr-4 -mt-4 opacity-50"></div>
+        <p class="text-sm font-semibold text-gray-500 mb-1 relative z-10">Total Alokasi Vendor</p>
+        <h3 class="text-2xl font-bold text-blue-700 relative z-10">Rp {{ number_format($totalAlokasi, 0, ',', '.') }}</h3>
+        <p class="text-xs text-blue-600/70 mt-2 font-medium relative z-10">Total komitmen biaya</p>
+    </div>
+
+    <!-- Card 2: Total Sudah Dibayar -->
+    <div class="bg-white rounded-2xl border border-green-100 shadow-sm p-5 relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-24 h-24 bg-green-50 rounded-bl-full -mr-4 -mt-4 opacity-50"></div>
+        <p class="text-sm font-semibold text-gray-500 mb-1 relative z-10">Total Sudah Dibayar</p>
+        <h3 class="text-2xl font-bold text-green-600 relative z-10">Rp {{ number_format($totalDibayar, 0, ',', '.') }}</h3>
+        <p class="text-xs text-green-600/70 mt-2 font-medium relative z-10">Total status Lunas/Dibayar</p>
+    </div>
+
+    <!-- Card 3: Sisa Kewajiban -->
+    <div class="bg-white rounded-2xl border border-orange-100 shadow-sm p-5 relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-24 h-24 bg-orange-50 rounded-bl-full -mr-4 -mt-4 opacity-50"></div>
+        <p class="text-sm font-semibold text-gray-500 mb-1 relative z-10">Sisa Kewajiban</p>
+        <h3 class="text-2xl font-bold text-orange-600 relative z-10">Rp {{ number_format($sisaKewajiban, 0, ',', '.') }}</h3>
+        <p class="text-xs text-orange-600/70 mt-2 font-medium relative z-10">Biaya yang belum dilunasi</p>
+    </div>
+</div>
+
 <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-6">
-    <form method="GET" action="{{ route('admin.vendor-keuangan.index') }}" class="flex flex-col sm:flex-row gap-3">
-        <input type="search" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Cari nomor booking / nama pasangan…"
-               class="flex-1 border border-gray-200 rounded-xl px-4 py-2 text-sm focus:border-bottle outline-none">
-        <button type="submit" class="px-5 py-2 bg-bottle text-white text-sm font-semibold rounded-xl hover:bg-bottleHover">Cari</button>
+    <form method="GET" action="{{ route('admin.vendor-keuangan.index') }}" class="flex flex-col sm:flex-row gap-3 items-end">
+        <div class="flex-1">
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Pencarian</label>
+            <input type="search" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Cari nomor booking / nama pasangan…"
+                   class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-bottle outline-none">
+        </div>
+        <div class="w-full sm:w-48">
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Filter Bulan</label>
+            <select name="month" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-bottle outline-none">
+                <option value="">Semua Bulan</option>
+                @foreach(range(1, 12) as $m)
+                <option value="{{ $m }}" @selected(($filters['month'] ?? '') == $m)>{{ date('F', mktime(0, 0, 0, $m, 10)) }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="w-full sm:w-32">
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Tahun</label>
+            <select name="year" class="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:border-bottle outline-none">
+                <option value="">Semua</option>
+                @foreach(range(date('Y') - 1, date('Y') + 2) as $y)
+                <option value="{{ $y }}" @selected(($filters['year'] ?? date('Y')) == $y)>{{ $y }}</option>
+                @endforeach
+            </select>
+        </div>
+        <button type="submit" class="px-6 py-2.5 bg-bottle text-white text-sm font-semibold rounded-xl hover:bg-bottleHover w-full sm:w-auto">Filter Data</button>
+        @if(!empty($filters['q']) || !empty($filters['month']))
+            <a href="{{ route('admin.vendor-keuangan.index') }}" class="px-4 py-2.5 bg-gray-100 text-gray-600 text-sm font-semibold rounded-xl hover:bg-gray-200 w-full sm:w-auto text-center">Reset</a>
+        @endif
     </form>
 </div>
 

@@ -93,6 +93,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/profile', [\App\Http\Controllers\Admin\ProfileController::class, 'show'])->name('profile.show');
         Route::patch('/profile', [\App\Http\Controllers\Admin\ProfileController::class, 'update'])->name('profile.update');
         Route::get('/profile/current', [\App\Http\Controllers\Admin\ProfileController::class, 'getCurrentProfile'])->name('profile.current');
+
+        Route::get('/notifications', [\App\Http\Controllers\Admin\NotificationController::class, 'index'])->name('notifications.index');
+        Route::post('/notifications/read-all', [\App\Http\Controllers\Admin\NotificationController::class, 'markAllRead'])->name('notifications.read-all');
+        Route::get('/notifications/{notification}/open', [\App\Http\Controllers\Admin\NotificationController::class, 'markRead'])->name('notifications.open');
         
         Route::get('/booking', [AdminPesananController::class, 'index'])->name('booking');
         Route::get('/booking/{pesanan}', [AdminPesananController::class, 'show'])->name('booking.show');
@@ -104,6 +108,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/booking/{pesanan}/verify-pelunasan', [AdminPesananController::class, 'verifyPelunasan'])->name('booking.verify_pelunasan');
         Route::post('/booking/{pesanan}/verify-lapangan', [AdminPesananController::class, 'verifyLapangan'])->name('booking.verify_lapangan');
         Route::post('/booking/{pesanan}/tugas/{tugas}/verify', [AdminPesananController::class, 'verifyTask'])->name('booking.tugas.verify');
+        Route::post('/booking/{pesanan}/tugas/{tugas}/reject', [AdminPesananController::class, 'rejectTask'])->name('booking.tugas.reject');
         Route::post('/booking/{pesanan}/tugas/{tugas}/force-finish', [AdminPesananController::class, 'forceFinishTask'])->name('booking.tugas.force_finish');
         Route::post('/booking/{pesanan}/reject-payment', [AdminPesananController::class, 'rejectPayment'])->name('booking.reject_payment');
         Route::post('/booking/{pesanan}/approve-cancellation', [AdminPesananController::class, 'approveCancellation'])->name('booking.approve_cancellation');
@@ -209,6 +214,7 @@ Route::prefix('lapangan')->name('lapangan.')->group(function () {
         Route::get('/pengaturan', [LapanganPengaturanController::class, 'index'])->name('pengaturan');
         Route::put('/pengaturan', [LapanganPengaturanController::class, 'update'])->name('pengaturan.update');
         Route::get('/tugas/pesanan/{pesanan}/vendors', [LapanganTugasController::class, 'vendorsForPesanan'])->name('tugas.pesanan.vendors');
+        Route::post('/tugas/{tugas}/upload-laporan', [LapanganTugasController::class, 'uploadLaporan'])->middleware('payment.deadline')->name('tugas.upload_laporan');
         Route::post('/tugas/{tugas}/verify', [LapanganTugasController::class, 'verifyComplete'])->middleware('payment.deadline')->name('tugas.verify');
         Route::resource('tugas', LapanganTugasController::class);
 
@@ -293,6 +299,12 @@ Route::middleware(['auth', 'client'])->prefix('client')->name('client.')->group(
     Route::post('/pesanan/{pesanan}/review', [\App\Http\Controllers\Customer\BookingReviewController::class, 'store'])->name('pesanan.review.store');
     Route::put('/pesanan/review/{bookingReview}', [\App\Http\Controllers\Customer\BookingReviewController::class, 'update'])->name('pesanan.review.update');
     Route::delete('/pesanan/review/{bookingReview}', [\App\Http\Controllers\Customer\BookingReviewController::class, 'destroy'])->name('pesanan.review.destroy');
+    
+    // Vendor Ratings (Bulk Review)
+    Route::get('/vendor-ratings', [\App\Http\Controllers\Customer\VendorRatingController::class, 'index'])->name('vendor-ratings.index');
+    Route::get('/vendor-ratings/{pesanan}', [\App\Http\Controllers\Customer\VendorRatingController::class, 'show'])->name('vendor-ratings.show');
+    Route::post('/vendor-ratings/{pesanan}/bulk', [\App\Http\Controllers\Customer\VendorRatingController::class, 'storeBulk'])->name('vendor-ratings.store-bulk');
+
     Route::get('/jadwal', [CustomerController::class, 'jadwal'])->name('jadwal');
     Route::get('/vendor-meetings', [\App\Http\Controllers\Customer\VendorMeetingController::class, 'index'])->name('vendor-meetings.index');
     Route::get('/invoice/{id}', [CustomerController::class, 'invoice'])->name('invoice');

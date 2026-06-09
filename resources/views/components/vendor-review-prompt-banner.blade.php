@@ -16,7 +16,7 @@
                 <li class="flex flex-wrap items-center justify-between gap-2 text-sm bg-white/70 rounded-lg px-3 py-2 border border-green-100">
                     <span class="font-medium text-gray-800">{{ $p->nama_pasangan }} <span class="text-gray-500 font-normal">({{ $p->nomor_pesanan }})</span> — {{ $row['pending_vendors']->count() }} vendor belum diulas</span>
                     <div class="flex gap-2">
-                        <a href="{{ route('client.pesanan_detail', $p->id) }}#review-vendor" class="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition">Beri Rating</a>
+                        <a href="{{ route('client.vendor-ratings.show', $p->id) }}" class="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition">Beri Rating</a>
                         @php $wa = "Halo Brilliant WO, saya ingin memberikan ulasan vendor untuk pesanan {$p->nomor_pesanan}."; @endphp
                         <a href="{{ \App\Support\Branding::whatsappUrl($wa) }}" target="_blank" rel="noopener" class="px-3 py-1.5 border border-green-500 text-green-600 text-xs font-semibold rounded-lg hover:bg-green-50 transition">WhatsApp</a>
                     </div>

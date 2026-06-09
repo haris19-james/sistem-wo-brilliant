@@ -18,6 +18,9 @@
                     leafBg: @json($c['leaf_bg']),
                     ink: @json($c['ink']),
                     grayBox: @json($c['gray_box']),
+                    golden: @json($c['golden']),
+                    goldenHover: @json($c['golden_hover']),
+                    goldenSoft: @json($c['golden_soft']),
                     @foreach($extraColors as $key => $value)
                     {{ $key }}: @json($value),
                     @endforeach

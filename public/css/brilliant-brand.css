@@ -10,6 +10,44 @@
     --brilliant-leaf: #C5F5CC;
     --brilliant-leaf-bg: #D4F9DC;
     --brilliant-ink: #111111;
+    --brilliant-gold: #E8A317;
+    --brilliant-gold-hover: #F5B82E;
+}
+
+.notification-bell-btn {
+    color: var(--brilliant-gold);
+}
+
+.notification-bell-btn:hover {
+    color: var(--brilliant-gold-hover);
+    background-color: #FFF8E6;
+}
+
+.notification-bell-btn svg {
+    filter: drop-shadow(0 1px 1px rgba(180, 120, 0, 0.35));
+}
+
+.notification-bell-badge {
+    background-color: #EF4444;
+    color: #fff;
+    min-width: 1.15rem;
+    height: 1.15rem;
+    font-size: 0.625rem;
+    font-weight: 700;
+    border: 2px solid #fff;
+}
+
+.notification-dropdown-panel,
+.notification-bell-dropdown {
+    z-index: 60;
+}
+
+.notification-bell-item--unread {
+    background-color: #EFF6FF;
+}
+
+.notification-bell-item--unread:hover {
+    background-color: #DBEAFE;
 }
 
 /* Fokus form mengikuti hijau logo */

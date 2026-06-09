@@ -63,17 +63,15 @@
                 <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 pt-2 border-t">
                     <label class="text-sm font-medium text-gray-700 sm:w-40">Total Progress (%)</label>
                     <div class="flex flex-wrap items-center gap-2">
-                        <input type="number" name="persentase" x-ref="persentaseInput"
-                            min="0" max="100" x-model.number="persentase"
-                            @input="onPersentaseInput()" @blur="onPersentaseBlur()"
-                            class="w-32 border border-gray-300 rounded-xl px-3 py-2 text-sm focus:border-field focus:outline-none"
-                            :class="manualOverride ? 'ring-2 ring-amber-200' : 'ring-2 ring-teal-100'"
-                            placeholder="Auto">
-                        <span class="text-xs font-semibold px-2 py-1 rounded-full"
-                              :class="manualOverride ? 'bg-amber-100 text-amber-800' : 'bg-teal-100 text-field'"
-                              x-text="manualOverride ? 'Manual' : 'Otomatis'"></span>
+                        <input type="number" id="persentaseDisplay"
+                            min="0" max="100" value="{{ (int) old('persentase', $progress?->persentase ?? 0) }}"
+                            class="w-32 border border-gray-300 rounded-xl px-3 py-2 text-sm bg-gray-100 text-gray-500 cursor-not-allowed"
+                            readonly>
+                        <span class="text-xs font-semibold px-2 py-1 rounded-full bg-teal-100 text-field">
+                            Dihitung Otomatis
+                        </span>
                     </div>
-                    <p class="text-xs text-gray-500 sm:flex-1">Bobot: Menunggu 0 · Proses 50 · Selesai 100 (rata-rata). Kosongkan field untuk kembali ke otomatis.</p>
+                    <p class="text-xs text-gray-500 sm:flex-1">Progress total dihitung otomatis berdasarkan jumlah tugas (vendor) yang selesai diverifikasi oleh Admin.</p>
                 </div>
                 <button type="submit" class="w-full sm:w-auto px-6 py-3 bg-field text-white font-bold rounded-xl hover:bg-fieldHover">
                     Simpan Progress

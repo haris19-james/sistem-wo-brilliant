@@ -24,24 +24,12 @@ class NotificationController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
-        // Ambil unread notifications terbaru
         $notifications = UserNotification::query()
             ->where('user_id', $user->id)
-            ->where('is_read', false)
             ->orderByDesc('created_at')
-            ->limit(50)
+            ->limit(10)
             ->get()
-            ->map(fn(UserNotification $n) => [
-                'id' => $n->id,
-                'message' => $n->message,
-                'category' => $n->category,
-                'priority' => $n->priority,
-                'link_redirect' => $n->link_redirect,
-                'reference_id' => $n->reference_id,
-                'reference_type' => $n->reference_type,
-                'created_at' => $n->created_at->toIso8601String(),
-                'is_urgent' => $n->isUrgent(),
-            ]);
+            ->map(fn (UserNotification $n) => $n->toBellArray());
 
         return response()->json([
             'success' => true,
@@ -64,7 +52,13 @@ class NotificationController extends Controller
 
         $notification->update(['is_read' => true]);
 
-        return response()->json(['success' => true]);
+        return response()->json([
+            'success' => true,
+            'unread_count' => UserNotification::query()
+                ->where('user_id', $user->id)
+                ->where('is_read', false)
+                ->count(),
+        ]);
     }
 
     /**
@@ -86,6 +80,7 @@ class NotificationController extends Controller
         return response()->json([
             'success' => true,
             'marked_count' => $count,
+            'unread_count' => 0,
         ]);
     }
 

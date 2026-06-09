@@ -1,4 +1,4 @@
-@props([
+﻿@props([
     'title' => null,
     'notificationRoute' => route('notifications.index') ?? url('/notifications'),
     'unreadCount' => 0,
@@ -16,16 +16,25 @@
         </div>
     </div>
 
-    {{-- Right: Date aligned with notification + Notification + User Profile --}}
-    <div class="flex items-center gap-4 ml-auto">
-        {{-- Date (visible on lg+ only) - aligned with notification icon --}}
-        <span class="text-sm text-gray-500 hidden lg:inline whitespace-nowrap shrink-0 pr-2 border-r border-gray-200">{{ \Carbon\Carbon::now()->locale('id')->translatedFormat('l, j F Y') }}</span>
+    {{-- Right: Search + Notification + User Profile --}}
+    <div class="flex items-center gap-3 ml-auto">
+        <div class="hidden sm:flex items-center">
+            <label for="admin-global-search" class="sr-only">Search</label>
+            <div class="relative">
+                <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+                <input id="admin-global-search"
+                       type="search"
+                       placeholder="Search..."
+                       class="w-56 lg:w-64 rounded-full border border-gray-200 bg-gray-50 py-2 pl-10 pr-4 text-sm text-gray-700 placeholder:text-gray-400 focus:border-bottle focus:bg-white focus:outline-none focus:ring-2 focus:ring-bottle/20 transition" />
+            </div>
+        </div>
 
-        {{-- Notification Bell (with dropdown integration) --}}
-        @include('components.notification-dropdown')
+        <x-notification-bell />
 
         {{-- User Profile Avatar + Dropdown (visible on md+) --}}
-        <div class="hidden md:flex items-center gap-3 pl-4 border-l border-gray-100 relative" x-data="profileMenu()">
+        <div class="hidden sm:flex items-center gap-3 pl-4 border-l border-gray-100 relative" x-data="profileMenu()">
             <!-- Avatar (Clickable) -->
             <button @click="toggleMenu()"
                     class="relative inline-flex items-center justify-center w-10 h-10 rounded-full border-2 border-gray-200 hover:border-bottle transition overflow-hidden shrink-0 bg-gray-100"
@@ -158,3 +167,5 @@ function profileMenu() {
     };
 }
 </script>
+
+

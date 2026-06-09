@@ -70,7 +70,7 @@
     @else
     @php
         $belum = $tugas->where('status', 'pending');
-        $sedang = $tugas->whereIn('status', ['in_progress', 'awaiting_verification']);
+        $sedang = $tugas->where('status', 'in_progress');
         $selesai = $tugas->where('status', 'completed');
     @endphp
 
@@ -123,9 +123,46 @@
     @endif
 
     @include('lapangan.modules.partials.tugas-drawer')
+
+    <!-- Upload Laporan Modal -->
+    <div id="uploadLaporanModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+        <div class="w-full max-w-md bg-white rounded-2xl p-6 shadow-xl relative">
+            <button type="button" onclick="closeUploadModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">✕</button>
+            <h3 class="font-bold text-lg text-gray-900 mb-4">Upload Laporan Tugas</h3>
+            <form id="uploadLaporanForm" method="POST" action="" enctype="multipart/form-data" class="space-y-4">
+                @csrf
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Foto Bukti Pengerjaan</label>
+                    <input type="file" name="foto_bukti" id="foto_bukti" accept="image/*" required
+                        class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100">
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="submit" class="w-full py-2 bg-bottle hover:bg-bottleHover text-white font-semibold rounded-lg transition">Kirim Laporan</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 @push('scripts')
+<script>
+    function openUploadModal(taskId) {
+        const modal = document.getElementById('uploadLaporanModal');
+        const form = document.getElementById('uploadLaporanForm');
+        // Define the route for upload laporan
+        form.action = `/lapangan/tugas/${taskId}/upload-laporan`;
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    function closeUploadModal() {
+        const modal = document.getElementById('uploadLaporanModal');
+        const form = document.getElementById('uploadLaporanForm');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        form.reset();
+    }
+</script>
 <script src="{{ asset('js/korlap-tugas.js') }}?v=5"></script>
 @endpush
 @endsection

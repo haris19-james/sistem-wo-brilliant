@@ -58,72 +58,60 @@
             <svg class="mx-auto h-12 w-12 text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
             </svg>
-            <p class="text-gray-500 text-sm">Tidak ada notifikasi</p>
+            <p class="text-gray-500 text-sm">Belum ada notifikasi</p>
         </div>
 
         <!-- Notifications List -->
-        <div x-show="!isLoading && notifications.length > 0" class="max-h-96 overflow-y-auto divide-y divide-gray-100">
-            <template x-for="notification in notifications" :key="notification.id">
-                <div 
-                    @click="handleNotificationClick(notification)"
-                    :class="{
-                        'bg-leafSoft': !notification.is_read,
-                        'bg-white': notification.is_read,
-                        'border-l-4 border-l-red-500': notification.priority === 'urgent'
-                    }"
-                    class="px-6 py-4 hover:bg-gray-50 cursor-pointer transition group">
-                    
-                    <div class="flex items-start gap-3">
-                        <!-- Icon -->
-                        <div :class="{
-                            'bg-red-100 text-red-600': notification.priority === 'urgent',
-                            'bg-blue-100 text-bottle': notification.priority !== 'urgent'
-                        }" class="flex-shrink-0 p-2 rounded-lg mt-0.5">
-                            <template x-if="notification.priority === 'urgent'">
-                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                                </svg>
-                            </template>
-                            <template x-if="notification.priority !== 'urgent'">
-                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
-                                    <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
-                                </svg>
-                            </template>
-                        </div>
-
-                        <!-- Content -->
-                        <div class="flex-1 min-w-0">
-                            <!-- Category Badge -->
-                            <div class="flex items-center gap-2 mb-1">
-                                <span :class="{
-                                    'bg-red-100 text-red-700': notification.priority === 'urgent',
-                                    'bg-gray-100 text-gray-600': notification.priority !== 'urgent'
-                                }" class="px-2 py-0.5 text-xs font-semibold rounded">
-                                    <span x-text="notification.category || 'Notifikasi'"></span>
-                                </span>
-                                <template x-if="!notification.is_read">
-                                    <span class="w-2 h-2 bg-bottle rounded-full"></span>
-                                </template>
+        <div x-show="!isLoading && groupedNotifications.length > 0" class="max-h-96 overflow-y-auto space-y-4 px-2 py-2">
+            <template x-for="group in groupedNotifications" :key="group.key">
+                <div class="rounded-2xl border border-gray-100 bg-white shadow-sm">
+                    <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <span class="text-xl" x-text="group.icon"></span>
+                            <div>
+                                <p class="text-sm font-semibold text-gray-900" x-text="group.title"></p>
+                                <p class="text-xs text-gray-500" x-text="group.items.length + ' notifikasi'"></p>
                             </div>
-
-                            <!-- Message -->
-                            <p :class="notification.priority === 'urgent' ? 'text-red-600 font-semibold' : 'text-gray-700'"
-                               class="text-sm leading-snug break-words"
-                               x-text="notification.message"></p>
-
-                            <!-- Time -->
-                            <p class="text-xs text-gray-500 mt-2" x-text="formatTime(notification.created_at)"></p>
                         </div>
+                        <span x-show="group.unreadCount > 0" class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
+                            <span x-text="group.unreadCount"></span> baru
+                        </span>
+                    </div>
 
-                        <!-- Delete Button -->
-                        <button 
-                            @click.stop="deleteNotification(notification.id)"
-                            class="flex-shrink-0 text-gray-300 hover:text-gray-500 opacity-0 group-hover:opacity-100 transition">
-                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                            </svg>
-                        </button>
+                    <template x-for="notification in group.items.slice(0, 4)" :key="notification.id">
+                        <div 
+                            class="px-5 py-4 hover:bg-gray-50 transition border-b border-gray-100"
+                            :class="notification.is_read ? 'bg-white opacity-75' : 'bg-blue-50/80 border-l-2 border-l-blue-400'">
+                            <div class="flex items-start gap-3">
+                                <div class="mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl bg-white border border-gray-200 text-sm font-semibold text-gray-700">
+                                    <span x-text="notification.icon"></span>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between gap-3">
+                                        <p class="text-sm font-medium text-gray-900" :class="notification.is_read ? '' : 'font-bold'" x-text="notification.display_message"></p>
+                                        <button 
+                                            type="button"
+                                            x-show="notification.link_redirect"
+                                            @click.stop="handleNotificationClick(notification)"
+                                            class="rounded-full bg-bottle px-3 py-1 text-xs font-semibold text-white hover:bg-bottleHover transition">
+                                            Lihat
+                                        </button>
+                                    </div>
+                                    <div class="mt-2 flex items-center gap-2 text-xs text-gray-500">
+                                        <span x-text="notification.groupLabel"></span>
+                                        <span>•</span>
+                                        <span x-text="formatTime(notification.created_at)"></span>
+                                        <template x-if="!notification.is_read">
+                                            <span class="ml-auto inline-flex h-2 w-2 rounded-full bg-blue-500"></span>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    <div x-show="group.items.length > 4" class="px-5 py-3 text-xs text-gray-500 bg-gray-50">
+                        Menampilkan 4 dari <span x-text="group.items.length"></span> notifikasi. Buka halaman notifikasi untuk melihat semuanya.
                     </div>
                 </div>
             </template>
@@ -142,6 +130,7 @@ function notificationDropdown() {
         isOpen: false,
         isLoading: false,
         notifications: [],
+        groupedNotifications: [],
         unreadCount: 0,
         errorMessage: '',
         pollInterval: null,
@@ -194,13 +183,20 @@ function notificationDropdown() {
                 }
                 
                 const data = await response.json();
-                this.notifications = data.notifications || [];
+                this.notifications = (data.notifications || []).map(notification => ({
+                    ...notification,
+                    display_message: this.formatMessage(notification),
+                    groupLabel: this.getGroupLabel(notification.category),
+                    icon: this.getNotificationIcon(notification.category),
+                }));
                 this.unreadCount = data.unread_count || 0;
+                this.groupedNotifications = this.buildGroupedNotifications(this.notifications);
                 
             } catch (error) {
                 console.error('Notification error:', error);
                 this.errorMessage = 'Gagal memuat notifikasi. Silakan coba lagi.';
                 this.notifications = [];
+                this.groupedNotifications = [];
             } finally {
                 this.isLoading = false;
             }
@@ -235,6 +231,7 @@ function notificationDropdown() {
                         notification.is_read = true;
                     }
                     this.unreadCount = Math.max(0, this.unreadCount - 1);
+                    this.groupedNotifications = this.buildGroupedNotifications(this.notifications);
                 }
             } catch (error) {
                 console.error('Error marking notification as read:', error);
@@ -255,6 +252,7 @@ function notificationDropdown() {
                     // Update local state
                     this.notifications.forEach(n => n.is_read = true);
                     this.unreadCount = 0;
+                    this.groupedNotifications = this.buildGroupedNotifications(this.notifications);
                 }
             } catch (error) {
                 console.error('Error marking all as read:', error);
@@ -278,10 +276,109 @@ function notificationDropdown() {
                 if (response.ok) {
                     // Remove from local state
                     this.notifications = this.notifications.filter(n => n.id !== notificationId);
+                    this.groupedNotifications = this.buildGroupedNotifications(this.notifications);
                 }
             } catch (error) {
                 console.error('Error deleting notification:', error);
             }
+        },
+        
+        buildGroupedNotifications(notifications) {
+            const buckets = {};
+            const order = ['payment', 'task', 'system'];
+
+            // Tampilkan semua notifikasi (baca & belum baca), tanpa filter
+            notifications.forEach(notification => {
+                const key = this.getGroupKey(notification.category);
+                if (!buckets[key]) {
+                    buckets[key] = {
+                        key,
+                        title: this.getGroupLabel(notification.category),
+                        icon: this.getGroupIcon(notification.category),
+                        items: [],
+                        unreadCount: 0,
+                    };
+                }
+
+                buckets[key].items.push(notification);
+                if (!notification.is_read) {
+                    buckets[key].unreadCount += 1;
+                }
+            });
+
+            return order
+                .filter(key => buckets[key])
+                .map(key => buckets[key])
+                .concat(Object.keys(buckets)
+                    .filter(key => !order.includes(key))
+                    .map(key => buckets[key])
+                );
+        },
+        
+        getGroupKey(category) {
+            if (category === 'payment') {
+                return 'payment';
+            }
+            if (category === 'task') {
+                return 'task';
+            }
+            return 'system';
+        },
+        
+        getGroupLabel(category) {
+            if (category === 'payment') {
+                return 'Pembayaran';
+            }
+            if (category === 'task') {
+                return 'Tugas Lapangan';
+            }
+            return 'Sistem';
+        },
+        
+        getGroupIcon(category) {
+            if (category === 'payment') {
+                return '💰';
+            }
+            if (category === 'task') {
+                return '👷';
+            }
+            return '⚙️';
+        },
+        
+        getNotificationIcon(category) {
+            if (category === 'payment') {
+                return '💵';
+            }
+            if (category === 'task') {
+                return '📝';
+            }
+            return '🔔';
+        },
+        
+        formatMessage(notification) {
+            const message = notification.message || '';
+            const category = notification.category || '';
+
+            if (category === 'task') {
+                const forcedFinish = message.match(/Tugas (.+?) dipaksa selesai oleh admin/i);
+                if (forcedFinish) {
+                    return `Tugas ${forcedFinish[1]} telah diselesaikan oleh Admin.`;
+                }
+
+                const verifiedFinished = message.match(/Tugas (.+?) diverifikasi selesai/i);
+                if (verifiedFinished) {
+                    return `Tugas ${verifiedFinished[1]} telah diverifikasi selesai.`;
+                }
+            }
+
+            if (category === 'payment') {
+                const paymentConfirmed = message.match(/konfirmasi pembayaran baru/i);
+                if (paymentConfirmed) {
+                    return 'Ada konfirmasi pembayaran baru. Periksa detail pembayaran untuk aksi selanjutnya.';
+                }
+            }
+
+            return message;
         },
         
         formatTime(dateString) {

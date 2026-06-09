@@ -272,6 +272,13 @@ class BookingController extends Controller
             ? 'Permintaan paket kustom terkirim! Tim admin akan menyiapkan penawaran via chat.'
             : 'Booking berhasil! No. '.$pesanan->nomor_pesanan.' — Tim admin akan menghubungi Anda via chat.';
 
+        app(\App\Services\NotificationCenterService::class)->notifyAdmins(
+            'Booking baru: '.$pesanan->nama_pasangan.' ('.$pesanan->nomor_pesanan.').',
+            route('admin.booking.show', $pesanan->id),
+            'normal',
+            'booking'
+        );
+
         Log::info('[BookingController@store] Booking selesai', [
             'pesanan_id' => $pesanan->id,
             'nomor_pesanan' => $pesanan->nomor_pesanan,

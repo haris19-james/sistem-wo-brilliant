@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Customer;
 use App\Http\Controllers\Controller;
 use App\Models\Pesanan;
 use App\Services\ItemTambahanService;
+use App\Services\NotificationCenterService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
@@ -32,6 +33,7 @@ class ItemTambahanController extends Controller
         ]);
 
         $item = $this->itemTambahanService->submitCustomerRequest($pesanan, $validated);
+        app(NotificationCenterService::class)->itemTambahanRequestedForAdmins($pesanan, $item);
 
         $message = 'Pengajuan item tambahan berhasil dikirim. Admin akan meninjau dan menetapkan harga.';
 
