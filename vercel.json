@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "npm run build && php -r \"copy('https://getcomposer.org/installer', '/tmp/composer-setup.php');\" && php /tmp/composer-setup.php --install-dir=/tmp --filename=composer && php /tmp/composer install --no-dev --optimize-autoloader --no-interaction",
+  "buildCommand": "sh ./scripts/vercel-build.sh",
   "outputDirectory": "public",
   "env": {
     "APP_ENV": "production",
