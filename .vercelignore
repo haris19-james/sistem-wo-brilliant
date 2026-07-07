@@ -1,0 +1,49 @@
+# Laravel
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/logs/*
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test files
+tests/
+phpunit.xml
+.phpunit.result.cache
+
+# Documentation
+*.md
+docs/
+screenshots-wo/
+portopolio/
+
+# Development
+.env
+.env.*.local
+
+# Laravel specific
+bootstrap/cache/*
+storage/app/*
+!storage/app/.gitkeep
+storage/framework/cache/*
+!storage/framework/cache/.gitkeep
+
+# Build artifacts (keep these)
+# public/build - needed for production
+# vendor - installed during build
