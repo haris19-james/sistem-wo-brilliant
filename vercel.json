@@ -1,4 +1,5 @@
 {
+  "version": 2,
   "buildCommand": "npm run build && composer install --no-dev --optimize-autoloader",
   "outputDirectory": "public",
   "env": {
@@ -6,8 +7,8 @@
     "APP_DEBUG": "false"
   },
   "functions": {
-    "api/**/*.php": {
-      "runtime": "php-8.2"
+    "api/index.php": {
+      "runtime": "vercel-php@0.7.0"
     }
   },
   "routes": [
